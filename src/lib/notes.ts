@@ -1,0 +1,69 @@
+import { getDb } from "./db";
+
+export interface Note {
+  id: number;
+  title: string;
+  content: string;
+  tags: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NoteInput {
+  title: string;
+  content?: string;
+  tags?: string;
+}
+
+function buildFtsQuery(raw: string): string {
+  const tokens = raw
+    .split(/\s+/)
+    .map((t) => t.replace(/["^*:]/g, ""))
+    .filter(Boolean);
+  return tokens.map((t) => `${t}*`).join(" ");
+}
+
+export function listNotes(query?: string): Note[] {
+  const db = getDb();
+  if (!query || !query.trim()) {
+    return db.prepare("SELECT * FROM notes ORDER BY updated_at DESC").all() as Note[];
+  }
+
+  const match = buildFtsQuery(query);
+  if (!match) {
+    return db.prepare("SELECT * FROM notes ORDER BY updated_at DESC").all() as Note[];
+  }
+
+  return db
+    .prepare(
+      `SELECT notes.* FROM notes_fts
+       JOIN notes ON notes.id = notes_fts.rowid
+       WHERE notes_fts MATCH ?
+       ORDER BY rank`
+    )
+    .all(match) as Note[];
+}
+
+export function getNote(id: number): Note | undefined {
+  return getDb().prepare("SELECT * FROM notes WHERE id = ?").get(id) as Note | undefined;
+}
+
+export function createNote(input: NoteInput): Note {
+  const db = getDb();
+  const result = db
+    .prepare(`INSERT INTO notes (title, content, tags) VALUES (?, ?, ?)`)
+    .run(input.title, input.content ?? "", input.tags ?? "");
+  return getNote(result.lastInsertRowid as number)!;
+}
+
+export function updateNote(id: number, input: NoteInput): Note | undefined {
+  const db = getDb();
+  db.prepare(
+    `UPDATE notes SET title = ?, content = ?, tags = ?, updated_at = datetime('now') WHERE id = ?`
+  ).run(input.title, input.content ?? "", input.tags ?? "", id);
+  return getNote(id);
+}
+
+export function deleteNote(id: number): void {
+  getDb().prepare("DELETE FROM notes WHERE id = ?").run(id);
+}
