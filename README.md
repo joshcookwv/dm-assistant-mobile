@@ -42,16 +42,10 @@ A native mobile port of the DM Assistant desktop/web app — same idea, but no P
 
 ## Installing
 
-This is currently a development-client build, not a signed release — see [`docs/store-submission.md`](docs/store-submission.md) for the plan to change that.
+Not on a store yet — see [`docs/store-submission.md`](docs/store-submission.md) for that plan. Two Android builds live in [`builds/`](builds/) (tracked via Git LFS):
 
-**Android:** grab the latest APK from [`builds/`](builds/) (tracked via Git LFS), install it on your phone, then from this repo run:
-
-```bash
-npm install
-npx expo start
-```
-
-Open the installed app and it connects to the dev server automatically over the same WiFi network.
+- **`*-preview.apk`** — standalone, install and run on its own like any normal app, no computer needed. This is what you want for just trying it out.
+- **`*-dev.apk`** — a development-client build for active coding on this repo. After installing it, run `npm install && npx expo start` and open the app — it connects to the dev server automatically over the same WiFi network.
 
 **iOS:** no build yet.
 
