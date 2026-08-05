@@ -18,12 +18,14 @@ A native mobile port of the DM Assistant desktop/web app — same idea, but no P
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/dashboard.png" alt="Dashboard" /><br/><sub>Dashboard — recent notes, counts, and quick links</sub></td>
-<td width="50%"><img src="docs/screenshots/rules.png" alt="Rules browser" /><br/><sub>Rules — offline SRD spells, monsters, and more</sub></td>
+<td width="33%"><img src="docs/screenshots/Dashboard.jpg" alt="Dashboard" /><br/><sub>Dashboard — recent notes, counts, and quick links</sub></td>
+<td width="33%"><img src="docs/screenshots/Rules.jpg" alt="Rules browser" /><br/><sub>Rules — offline SRD categories, browsable with no connection</sub></td>
+<td width="33%"><img src="docs/screenshots/Monsters.jpg" alt="Monster search with CR filter" /><br/><sub>Monsters — search by name or challenge rating</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/screenshots/encounters.png" alt="Combat tracker" /><br/><sub>Encounters — live initiative, HP, and condition tracking</sub></td>
-<td width="50%"><img src="docs/screenshots/npcs.png" alt="NPC editor" /><br/><sub>NPCs — with AI-assisted name/description suggestions</sub></td>
+<td width="33%"><img src="docs/screenshots/NPC.jpg" alt="NPC list" /><br/><sub>NPCs — searchable roster</sub></td>
+<td width="33%"><img src="docs/screenshots/NPC-AI.jpg" alt="NPC with AI-suggested description" /><br/><sub>NPCs — AI-assisted name/description suggestions</sub></td>
+<td width="33%"><img src="docs/screenshots/Encounter-2.jpg" alt="Combat tracker" /><br/><sub>Encounters — live initiative, HP, monster search across SRD + Bestiary</sub></td>
 </tr>
 </table>
 
