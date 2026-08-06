@@ -30,34 +30,21 @@ Since there's no iOS build yet at all (see README), doing Android first gets som
 - [ ] **Target audience & content**: mark as not directed at children (13+ is the realistic floor given D&D content).
 - [ ] **App icon** for the store listing: 512×512 PNG, 32-bit with alpha. The in-app icon (`assets/images/icon.png`) is 1024×1024 and can be downscaled.
 - [ ] **Feature graphic**: 1024×500 PNG/JPG, shown at the top of the store listing — not yet made.
-- [x] **Screenshots**: minimum 2, Play Store recommends 4–8. Phone screenshots need to be actual device captures (not simulator chrome) at a minimum 320px, max 3840px on the longest side. Captured — see [`docs/screenshots/`](screenshots/) and the preview below. These are real device captures at 1080×2340, well within Play's size requirements; the same set doubles as the README's showcase images.
+- [ ] **Screenshots**: minimum 2, Play Store recommends 4–8. Phone screenshots need to be actual device captures (not simulator chrome) at a minimum 320px, max 3840px on the longest side. Previous captures were removed after the D20-logo/dark-ember rebrand made them stale (old amber theme, separate Bestiary/Session tabs) — needs a fresh set from the current build, same folder (`docs/screenshots/`), same set doubling as the README's showcase images.
 - [ ] **Short description**: max 80 characters.
 - [ ] **Full description**: max 4000 characters.
 
 ## 4. Known gaps to resolve before submitting (not just before it "looks nice")
 
 - [ ] iOS build doesn't exist yet — out of scope for a Play Store submission, but blocks any App Store submission.
-- [x] `production`-profile build succeeded (outputs an `.aab`, the Play Store submission format — not directly installable). A `preview`-profile build (same stripped-down non-dev-client code, but an installable `.apk`) was also built for on-device testing — see [`builds/dm-assistant-mobile-v1.0.0-preview.apk`](../builds/). **Still pending:** an actual on-device pass through every feature on that standalone build, since only the `development`-profile build (Metro-connected) has been fully verified so far.
-- [x] Screenshots captured — see section 3 above.
+- [x] `production`-profile build succeeded (outputs an `.aab`, the Play Store submission format — not directly installable). A `preview`-profile build (same stripped-down non-dev-client code, but an installable `.apk`) has been built for on-device testing after each major change, most recently post-rebrand/UI-refresh — see [`builds/dm-assistant-mobile-v1.0.0-preview.apk`](../builds/). **Still pending:** a multi-day on-device pass through every feature on that standalone build before it's considered store-ready.
+- [ ] Screenshots — see section 3 above; pending re-capture after the rebrand.
 - [ ] Confirm the bundled SRD content's licensing (OGL/CC via Open5e) is compatible with distribution inside a store-listed app, not just a source repo — the original web app's README asserts this is fine since "no SRD content is included in this repository itself" (fetched at setup time), but this mobile app **does** bundle the SRD data directly inside the app package (`assets/srd/`) rather than fetching it at runtime. Worth a deliberate read of the OGL 1.0a / CC-BY-4.0 terms for redistribution-inside-a-binary before submitting, even though this is very likely fine (this is exactly what Open5e's license grants are for) — flagging it as a real "read it, don't just assume" item rather than glossing over it.
 - [ ] Decide what happens to the currently-installed `com.joshcook.dmassistant` dev-client build on your test device — it's now a different package than the renamed `com.infernalbulldog.dmassistant`, so it's an orphaned install you can uninstall whenever.
 
 ## Screenshot preview
 
-<table>
-<tr>
-<td width="33%"><img src="screenshots/Dashboard.jpg" width="220" alt="Dashboard" /></td>
-<td width="33%"><img src="screenshots/Rules.jpg" width="220" alt="Rules browser" /></td>
-<td width="33%"><img src="screenshots/Monsters.jpg" width="220" alt="Monster search with CR filter" /></td>
-</tr>
-<tr>
-<td width="33%"><img src="screenshots/NPC.jpg" width="220" alt="NPC list" /></td>
-<td width="33%"><img src="screenshots/NPC-AI.jpg" width="220" alt="NPC with AI-suggested description" /></td>
-<td width="33%"><img src="screenshots/Encounter-2.jpg" width="220" alt="Combat tracker" /></td>
-</tr>
-</table>
-
-Two extra captures not otherwise used ([`NPC-new.jpg`](screenshots/NPC-new.jpg), [`Encounter-1.jpg`](screenshots/Encounter-1.jpg)) are available in the same folder if the listing wants more than 6.
+_Pending — old captures were removed after the rebrand (see section 3). Re-add this table once fresh screenshots exist in `docs/screenshots/`._
 
 ## 5. Draft listing copy
 
@@ -80,12 +67,13 @@ DM Assistant
 > Everything lives on your device. There's no account, no cloud sync, and no telemetry — your campaign never leaves your phone unless you choose to use an AI feature, which requires your own Claude API key.
 >
 > **Features:**
-> • Rules — spells, monsters, conditions, classes, species, feats, backgrounds, magic items, equipment, weapons, and armor from the D&D 5e SRD (2014 and 2024 rulesets), plus dozens of third-party sourcebooks — all bundled with the app and readable with no internet connection.
+> • Rules — spells, conditions, classes, species, feats, backgrounds, magic items, equipment, weapons, and armor from the D&D 5e SRD (2014 and 2024 rulesets), plus dozens of third-party sourcebooks — all bundled with the app and readable with no internet connection, plus a combat quick-reference page for the table.
+> • Monsters — official SRD creatures and your own homebrew in one searchable list, filterable to Official or Homebrew, searchable by name or challenge rating.
 > • NPCs — track name, race, role, location, and notes, with optional AI-suggested names and descriptions.
 > • Notes — searchable markdown campaign notes.
-> • Encounters — a live combat tracker: initiative order, HP, AC, and conditions, searchable against both official monsters and your own homebrew.
+> • Session — stage PCs and monsters ahead of game night across any number of named sessions, then drop a full roster into an encounter in one tap.
+> • Encounters — a live combat tracker: initiative order, HP, AC, and conditions, built from a prepared session, official monsters, or your own homebrew.
 > • Maps — attach images from your photo library or link out to maps hosted elsewhere.
-> • Bestiary — your homebrew and imported monsters, available everywhere official monsters are.
 > • PDF import — point it at a sourcebook or homebrew PDF and Claude reads it directly, pulling out NPCs, stat blocks, and rules text for you to review before anything saves.
 >
 > Bring your own Claude API key (optional, from console.anthropic.com) to unlock the AI features. Everything else works with zero configuration.
@@ -102,7 +90,7 @@ Host this text (or a refined version of it) at a public URL and link it from Pla
 
 > **Privacy Policy — DM Assistant**
 >
-> DM Assistant does not collect, store, or transmit any personal data to its developer. All campaign data — NPCs, notes, encounters, maps, and your Bestiary — is stored locally on your device and never leaves it.
+> DM Assistant does not collect, store, or transmit any personal data to its developer. All campaign data — NPCs, notes, encounters, maps, sessions, and your homebrew monsters — is stored locally on your device and never leaves it.
 >
 > **AI features (optional).** If you choose to add a Claude API key in Settings and use an AI-assisted feature (NPC suggestions or PDF import), the relevant content (e.g. an NPC's name/race/role, or a PDF's contents) is sent directly from your device to Anthropic's API (anthropic.com) to generate a response. Your API key is stored only in your device's secure keychain. See Anthropic's own privacy policy for how they handle that data: https://www.anthropic.com/legal/privacy
 >
