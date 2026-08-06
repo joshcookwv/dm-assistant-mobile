@@ -28,8 +28,8 @@ Since there's no iOS build yet at all (see README), doing Android first gets som
   - Can users request data deletion? N/A — nothing is stored outside the user's own device; uninstalling the app deletes everything.
 - [ ] **Content rating questionnaire** (IARC, via Play Console). Expect a **Teen** rating (fantasy violence references in monster stat blocks/combat descriptions) — answer honestly; this is a standard TTRPG-content rating, not a red flag.
 - [ ] **Target audience & content**: mark as not directed at children (13+ is the realistic floor given D&D content).
-- [ ] **App icon** for the store listing: 512×512 PNG, 32-bit with alpha. The in-app icon (`assets/images/icon.png`) is 1024×1024 and can be downscaled.
-- [ ] **Feature graphic**: 1024×500 PNG/JPG, shown at the top of the store listing — not yet made.
+- [x] **App icon** for the store listing: 512×512 PNG, 32-bit with alpha. Downscaled from the in-app icon — [`docs/store-assets/app-icon-512.png`](store-assets/app-icon-512.png).
+- [x] **Feature graphic**: 1024×500, shown at the top of the store listing. Recreated at full resolution from the dashboard hero banner's actual design (same colors/copy/logo treatment, not just a cropped screenshot) — [`docs/store-assets/feature-graphic.jpg`](store-assets/feature-graphic.jpg) (upload this one — Play rejects alpha on this slot) or [`.png`](store-assets/feature-graphic.png) (also alpha-free).
 - [x] **Screenshots**: minimum 2, Play Store recommends 4–8. Phone screenshots need to be actual device captures (not simulator chrome) at a minimum 320px, max 3840px on the longest side. Re-captured post-rebrand — see [`docs/screenshots/`](screenshots/) and the preview below. 15 real device captures at 1080×2340, well within Play's size requirements; a subset doubles as the README's showcase images.
 - [ ] **Short description**: max 80 characters.
 - [ ] **Full description**: max 4000 characters.
@@ -39,7 +39,7 @@ Since there's no iOS build yet at all (see README), doing Android first gets som
 - [ ] iOS build doesn't exist yet — out of scope for a Play Store submission, but blocks any App Store submission.
 - [x] `production`-profile build succeeded (outputs an `.aab`, the Play Store submission format — not directly installable). A `preview`-profile build (same stripped-down non-dev-client code, but an installable `.apk`) has been built for on-device testing after each major change, most recently post-rebrand/UI-refresh — see [`builds/dm-assistant-mobile-v1.0.0-preview.apk`](../builds/). **Still pending:** a multi-day on-device pass through every feature on that standalone build before it's considered store-ready.
 - [x] Screenshots captured — see section 3 above.
-- [ ] Confirm the bundled SRD content's licensing (OGL/CC via Open5e) is compatible with distribution inside a store-listed app, not just a source repo — the original web app's README asserts this is fine since "no SRD content is included in this repository itself" (fetched at setup time), but this mobile app **does** bundle the SRD data directly inside the app package (`assets/srd/`) rather than fetching it at runtime. Worth a deliberate read of the OGL 1.0a / CC-BY-4.0 terms for redistribution-inside-a-binary before submitting, even though this is very likely fine (this is exactly what Open5e's license grants are for) — flagging it as a real "read it, don't just assume" item rather than glossing over it.
+- [x] **SRD content licensing — researched, verdict: not a bundling problem, but a missing-notices problem.** Full writeup in section 7 below. Short version: both OGL 1.0a and CC-BY-4.0 explicitly permit exactly this (compiling into a distributed app, commercial use included) — bundling vs. fetching-at-runtime makes no legal difference, both are "Distribution"/"Sharing" under these licenses. What the app is actually missing is the **notice/attribution text both licenses make mandatory as the condition of that permission** — right now there is zero license or attribution text anywhere in the app. **Not yet fixed — needs a new in-app Legal/Licenses screen; flagged to the user rather than built unprompted since it's a new UI surface.**
 - [ ] Decide what happens to the currently-installed `com.joshcook.dmassistant` dev-client build on your test device — it's now a different package than the renamed `com.infernalbulldog.dmassistant`, so it's an orphaned install you can uninstall whenever.
 
 ## Screenshot preview
@@ -112,3 +112,60 @@ Host this text (or a refined version of it) at a public URL and link it from Pla
 > **Data deletion.** Since nothing is stored outside your device, uninstalling the app removes all app data. There is no account to delete.
 >
 > **Contact.** [add a contact email or GitHub issues link here before publishing]
+
+## 7. SRD content licensing (researched 2026-08-06)
+
+This isn't formal legal advice, but it's grounded in the actual primary sources (the OGL 1.0a full text, Creative Commons' own legal code, Wizards' own published attribution requirements) rather than assumption — worth a quick lawyer glance before submitting given real stakes, but this is also an extremely well-trodden pattern; every 5e digital tool built on Open5e/OGL/CC content does some version of what's below.
+
+**Verdict: distributing this content inside the app is fine — both licenses explicitly permit exactly that, bundled or fetched-live makes no legal difference. What's actually missing is the notice/attribution text both licenses make *mandatory* as the condition of that permission. Right now the app has zero license or attribution text anywhere. That's the real, fixable gap — not "can we ship this," but "we're not done complying yet."**
+
+### What's actually bundled (from `assets/srd/sources.srddata`, 20 sources)
+
+| License | Sources |
+| --- | --- |
+| **CC-BY-4.0** | WotC SRD 2014 (`srd-2014`, dual-licensed — see below), WotC SRD 2024 (`srd-2024`), Black Flag SRD (Kobold Press), Spells That Don't Suck (Somanyrobots), Open5e's `core` compilation (dual) |
+| **OGL 1.0a only** (no CC alternative) | Creature Codex, Deep Magic, Deep Magic Extended, Kobold Press Compilation, Tome of Beasts 1/2/3 (+2023 ed.), Tome of Heroes, Vault of Magic, Warlock Zine (all Kobold Press) · Tal'dorei Campaign Setting (Green Ronin) · Open5e Originals (2014 & 2024) |
+| **CC0** (public domain, no attribution legally required) | Elderberry Inn Icons |
+
+Open5e itself imposes no additional terms beyond passing through these upstream licenses (confirmed via their API repo) — it's a pure aggregator, same as it appears to WotC/Kobold Press/etc.
+
+### The CC-BY-4.0 path (simpler — use this for everything dual-licensed)
+
+`srd-2014` and `core` are dual-licensed (OGL *or* CC-BY, your choice) — CC-BY is far less burdensome (one attribution block vs. OGL's Section 15 chain + full license text), so use it for those. Wizards publishes an **exact required sentence** for each SRD version — don't paraphrase it, use it verbatim:
+
+- **SRD 5.1 (2014 rules):** "This work includes material taken from the System Reference Document 5.1 ("SRD 5.1") by Wizards of the Coast LLC and available at https://dnd.wizards.com/resources/systems-reference-document. The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International License available at https://creativecommons.org/licenses/by/4.0/legalcode."
+- **SRD 5.2 (2024 rules):** "This work includes material from the System Reference Document 5.2 ("SRD 5.2") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode."
+- Wizards is explicit: **don't add any other attribution to Wizards beyond these exact sentences** (no "used with permission," no logo use, etc.).
+- Black Flag SRD and Spells That Don't Suck just need standard CC-BY credit: creator name, title, license link, note if modified — no publisher-mandated exact sentence like Wizards', more latitude in phrasing.
+
+### The OGL 1.0a path (mandatory for the Kobold Press catalog, Tal'dorei, Open5e Originals — no CC alternative exists for these)
+
+Two concrete obligations, both currently unmet:
+1. **Include a copy of the OGL 1.0a license text itself** somewhere in the app (Section 10: "You MUST include a copy of this License with every copy of the Open Game Content You Distribute"). One reachable screen satisfies this — same as how a physical OGL book prints the license once on its last page, not per-monster-entry.
+2. **A Section 15 copyright-notice block** listing every contributor whose content is used (Section 6/15). This doesn't require hunting down each book's own historical Section 15 text — it requires *a* correct title/copyright-year/copyright-holder line per source, which is exactly the metadata already bundled per-source in `sources.srddata`. Auto-generated from that data, the block reads:
+
+  > Creature Codex, Copyright 2018, Kobold Press; Author Wolfgang Baur, Dan Dillon, Richard Green, James Haeck, Chris Harris, Jeremy Hochhalter, James Introcaso, Chris Lockey, Shawn Merwin, and Jon Sawatsky.
+  > Deep Magic for 5th Edition, Copyright 2020, Kobold Press; Author Dan Dillon, Chris Harris, and Jeff Lee.
+  > Deep Magic Extended, Copyright 2024, Kobold Press.
+  > Kobold Press Compilation, Copyright 2024, Kobold Press.
+  > Open5e Originals, Copyright 2024, Open5e; Author Ean Moody and others.
+  > Tal'dorei Campaign Setting, Copyright 2017, Green Ronin Publishing; Author Matthew Mercer, James Haeck.
+  > Tome of Beasts, Copyright 2016, Kobold Press; Author Chris Harris, Dan Dillon, Rodrigo Garcia Carmona, and Wolfgang Baur.
+  > Tome of Beasts 1 (2023 Edition), Copyright 2024, Kobold Press; Author Dan Dillon, Chris Harris, Rodrigo Garcia Carmona, Wolfgang Baur.
+  > Tome of Beasts 2, Copyright 2020, Kobold Press; Author Wolfgang Baur, Celeste Conowitch, Darrin Drader, James Introcaso, Philip Larwood, Jeff Lee, Kelly Pawlik, Brian Suskind, Mike Welham.
+  > Tome of Beasts 3, Copyright 2022, Kobold Press; Author Wolfgang Baur, Celeste Conowitch, Darrin Drader, James Introcaso, Philip Larwood, Jeff Lee, Kelly Pawlik, Brian Suskind, Mike Welham.
+  > Tome of Heroes, Copyright 2022, Kobold Press; Author Kelly Pawlik, Ben McFarland, and Brian Suskind.
+  > Vault of Magic, Copyright 2021, Kobold Press; Author Phillip Larwood, Jeff Lee, and Christopher Lockey.
+  > Warlock Zine, Copyright 2017, Kobold Press; Author Wolfgang Baur and others.
+  >
+  > Also required as the root entry, since this content derives from SRD mechanics: "System Reference Document 5.1 Copyright 2016, Wizards of the Coast, Inc.; Authors Mike Mearls, Jeremy Crawford, Chris Perkins, Rodney Thompson, Peter Lee, James Wyatt, Robert J. Schwalb, Bruce R. Cordell, Chris Sims, and Steve Townshend, based on original material by E. Gary Gygax and Dave Arneson."
+
+  (Two source rows had unusable `author` metadata in Open5e's own dataset — `Deep Magic Extended` literally says `"Not sure.."` and `Kobold Press Compilation` says `"Various."`; both trimmed to publisher-only above since the license only requires *a* correct copyright holder, not a complete author roster, but the raw data is worth a quick manual fix if this ever needs re-generating from source.)
+
+3. **Product Identity (OGL §7):** don't use publisher-trademarked proper nouns (setting names, unique NPCs, etc.) outside of Open Game Content — not a concern here since the app only surfaces what Open5e itself already vetted as OGC; nothing new is being introduced.
+
+### What this means practically — not yet built
+
+A **Legal / Licenses screen** (e.g. off Settings, or a footer link) containing: the CC-BY attribution sentences, the OGL 1.0a full license text, and the Section 15 block above. This is genuinely small (a few screens of static text, no new data model), but it's a new UI surface, so — per standing instruction — **not built without asking first.** Worth doing before a real store submission; low urgency for the current on-device test pass since this only matters once the app is actually distributed to other people via a store listing.
+
+Sources: [OGL 1.0a full text](https://www.d20srd.org/ogl.htm) · [CC BY 4.0 legal code](https://creativecommons.org/licenses/by/4.0/) · [Wizards' SRD 5.2 CC release](https://www.dndbeyond.com/srd) · [Open5e](https://open5e.com/) · [Open5e API repo](https://github.com/open5e/open5e-api)
