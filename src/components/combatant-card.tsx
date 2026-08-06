@@ -1,5 +1,7 @@
 import { Pressable, Text, TextInput, View } from "react-native";
 
+import { AppIcon } from "@/components/app-icon";
+import { Colors } from "@/constants/colors";
 import type { Combatant } from "@/lib/encounters";
 
 export function CombatantCard({
@@ -15,86 +17,128 @@ export function CombatantCard({
 }) {
   const isBloodied = combatant.maxHp > 0 && combatant.currentHp <= combatant.maxHp / 2 && combatant.currentHp > 0;
   const isDown = combatant.currentHp <= 0;
-  const hpColor = isDown ? "text-red-400" : isBloodied ? "text-amber-400" : "text-foreground";
+  const hpPercent = combatant.maxHp > 0 ? Math.min(100, Math.max(0, (combatant.currentHp / combatant.maxHp) * 100)) : 0;
+  const hpColor = isDown ? Colors.danger : isBloodied ? "#fbbf24" : Colors.success;
+  const hpStatus = isDown ? "Down" : isBloodied ? "Bloodied" : "Healthy";
 
   return (
     <View
-      className={`rounded-md border p-3 ${isActive ? "border-accent bg-accent/15" : "border-panel-border bg-panel"} ${isDown ? "opacity-60" : ""}`}
+      className={`overflow-hidden rounded-2xl border ${isActive ? "border-accent bg-accent-soft" : "border-panel-border bg-panel"} ${isDown ? "opacity-70" : ""}`}
     >
-      <View className="flex-row items-center gap-2">
-        {isActive && <Text className="text-accent">▶</Text>}
+      {isActive ? <View className="h-1 w-full bg-accent" /> : null}
+      <View className="p-3.5">
+        <View className="flex-row items-center gap-2">
+          {isActive ? (
+            <View className="flex-row items-center gap-1.5 rounded-full bg-accent px-2.5 py-1">
+              <AppIcon name="quick" size={12} color={Colors.accentForeground} />
+              <Text className="text-[10px] font-black uppercase tracking-wider text-accent-foreground">Active</Text>
+            </View>
+          ) : null}
+          <View className={`rounded-full px-2.5 py-1 ${combatant.isPc ? "bg-sky-500/15" : "bg-panel-raised"}`}>
+            <Text className={`text-[10px] font-bold uppercase tracking-wider ${combatant.isPc ? "text-sky-300" : "text-muted"}`}>
+              {combatant.isPc ? "Player" : "Enemy"}
+            </Text>
+          </View>
+          <View className="flex-1" />
+          <View className="flex-row items-center gap-1.5 rounded-xl border border-panel-border bg-background px-2 py-1">
+            <Text className="text-[10px] font-bold uppercase text-muted">Init</Text>
+            <TextInput
+              value={String(combatant.initiative)}
+              onChangeText={(value) => onUpdate({ initiative: Number(value) || 0 })}
+              keyboardType="numbers-and-punctuation"
+              selectTextOnFocus
+              className="min-w-8 py-0 text-center text-sm font-bold text-foreground"
+            />
+          </View>
+          <Pressable
+            onPress={onRemove}
+            accessibilityRole="button"
+            accessibilityLabel={`Remove ${combatant.name}`}
+            hitSlop={6}
+            className="h-9 w-9 items-center justify-center rounded-xl active:bg-red-500/10"
+          >
+            <AppIcon name="trash" size={16} color={Colors.muted} />
+          </Pressable>
+        </View>
+
         <TextInput
           value={combatant.name}
           onChangeText={(name) => onUpdate({ name })}
-          className={`flex-1 text-base font-medium ${combatant.isPc ? "text-sky-300" : "text-foreground"}`}
+          placeholder="Combatant name"
+          placeholderTextColor={Colors.muted}
+          className={`mt-2 py-1 text-lg font-bold ${combatant.isPc ? "text-sky-200" : "text-foreground"}`}
         />
-        <Pressable onPress={onRemove} hitSlop={8} className="px-1">
-          <Text className="text-muted">✕</Text>
-        </Pressable>
-      </View>
 
-      <View className="mt-2 flex-row flex-wrap items-center gap-4">
-        <View className="items-center">
-          <Text className="text-[10px] uppercase text-muted">Init</Text>
-          <TextInput
-            value={String(combatant.initiative)}
-            onChangeText={(v) => onUpdate({ initiative: Number(v) || 0 })}
-            keyboardType="numbers-and-punctuation"
-            className="mt-0.5 w-12 rounded border border-panel-border bg-background px-1.5 py-1 text-center text-foreground"
-          />
-        </View>
+        <View className="mt-2 flex-row gap-2">
+          <View className="flex-1 rounded-2xl border border-panel-border bg-background p-3">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-[10px] font-bold uppercase tracking-wider text-muted">Hit points</Text>
+              <Text style={{ color: hpColor }} className="text-[10px] font-bold uppercase">
+                {hpStatus}
+              </Text>
+            </View>
+            <View className="mt-2 flex-row items-center justify-center gap-1.5">
+              <Pressable
+                onPress={() => onUpdate({ currentHp: Math.max(0, combatant.currentHp - 1) })}
+                accessibilityRole="button"
+                accessibilityLabel={`Decrease ${combatant.name} hit points`}
+                className="h-9 w-9 items-center justify-center rounded-xl border border-panel-border bg-panel-raised active:bg-white/10"
+              >
+                <Text className="text-xl font-medium text-foreground">-</Text>
+              </Pressable>
+              <TextInput
+                value={String(combatant.currentHp)}
+                onChangeText={(value) => onUpdate({ currentHp: Number(value) || 0 })}
+                keyboardType="numbers-and-punctuation"
+                selectTextOnFocus
+                style={{ color: hpColor }}
+                className="w-12 rounded-xl border border-panel-border bg-panel-raised px-1 py-2 text-center text-base font-black"
+              />
+              <Text className="text-xs text-muted">/</Text>
+              <TextInput
+                value={String(combatant.maxHp)}
+                onChangeText={(value) => onUpdate({ maxHp: Number(value) || 0 })}
+                keyboardType="numbers-and-punctuation"
+                selectTextOnFocus
+                className="w-12 rounded-xl border border-panel-border bg-panel-raised px-1 py-2 text-center text-base font-bold text-foreground"
+              />
+              <Pressable
+                onPress={() => onUpdate({ currentHp: combatant.currentHp + 1 })}
+                accessibilityRole="button"
+                accessibilityLabel={`Increase ${combatant.name} hit points`}
+                className="h-9 w-9 items-center justify-center rounded-xl border border-panel-border bg-panel-raised active:bg-white/10"
+              >
+                <Text className="text-xl font-medium text-foreground">+</Text>
+              </Pressable>
+            </View>
+            <View className="mt-2 h-1.5 overflow-hidden rounded-full bg-panel-raised">
+              <View style={{ width: `${hpPercent}%`, backgroundColor: hpColor }} className="h-full rounded-full" />
+            </View>
+          </View>
 
-        <View className="items-center">
-          <Text className="text-[10px] uppercase text-muted">HP</Text>
-          <View className="mt-0.5 flex-row items-center gap-1">
-            <Pressable
-              onPress={() => onUpdate({ currentHp: Math.max(0, combatant.currentHp - 1) })}
-              hitSlop={6}
-              className="h-7 w-7 items-center justify-center rounded border border-panel-border active:bg-white/10"
-            >
-              <Text className="text-foreground">−</Text>
-            </Pressable>
+          <View className="w-20 items-center justify-center rounded-2xl border border-panel-border bg-background p-2">
+            <AppIcon name="armor" size={18} color={Colors.muted} />
+            <Text className="mt-1 text-[10px] font-bold uppercase tracking-wider text-muted">AC</Text>
             <TextInput
-              value={String(combatant.currentHp)}
-              onChangeText={(v) => onUpdate({ currentHp: Number(v) || 0 })}
+              value={combatant.ac === null ? "" : String(combatant.ac)}
+              onChangeText={(value) => onUpdate({ ac: value ? Number(value) || 0 : null })}
               keyboardType="numbers-and-punctuation"
-              className={`w-12 rounded border border-panel-border bg-background px-1 py-1 text-center ${hpColor}`}
-            />
-            <Pressable
-              onPress={() => onUpdate({ currentHp: combatant.currentHp + 1 })}
-              hitSlop={6}
-              className="h-7 w-7 items-center justify-center rounded border border-panel-border active:bg-white/10"
-            >
-              <Text className="text-foreground">+</Text>
-            </Pressable>
-            <Text className="text-muted">/</Text>
-            <TextInput
-              value={String(combatant.maxHp)}
-              onChangeText={(v) => onUpdate({ maxHp: Number(v) || 0 })}
-              keyboardType="numbers-and-punctuation"
-              className="w-12 rounded border border-panel-border bg-background px-1 py-1 text-center text-foreground"
+              selectTextOnFocus
+              placeholder="--"
+              placeholderTextColor={Colors.muted}
+              className="mt-1 w-full py-0 text-center text-xl font-black text-foreground"
             />
           </View>
         </View>
 
-        <View className="items-center">
-          <Text className="text-[10px] uppercase text-muted">AC</Text>
-          <TextInput
-            value={combatant.ac === null ? "" : String(combatant.ac)}
-            onChangeText={(v) => onUpdate({ ac: v ? Number(v) || 0 : null })}
-            keyboardType="numbers-and-punctuation"
-            className="mt-0.5 w-12 rounded border border-panel-border bg-background px-1.5 py-1 text-center text-foreground"
-          />
-        </View>
-
-        <View className="min-w-24 flex-1">
-          <Text className="text-[10px] uppercase text-muted">Conditions</Text>
+        <View className="mt-2 flex-row items-center gap-2 rounded-xl border border-panel-border bg-background px-3 py-2.5">
+          <AppIcon name="tag" size={15} color={Colors.muted} />
           <TextInput
             value={combatant.conditions}
             onChangeText={(conditions) => onUpdate({ conditions })}
-            placeholder="—"
-            placeholderTextColor="#a89a80"
-            className="mt-0.5 rounded border border-panel-border bg-background px-1.5 py-1 text-foreground"
+            placeholder="No conditions"
+            placeholderTextColor={Colors.muted}
+            className="flex-1 py-0 text-sm text-foreground"
           />
         </View>
       </View>

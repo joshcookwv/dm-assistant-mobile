@@ -1,19 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, FlatList, View } from "react-native";
 import { router, useLocalSearchParams, useNavigation } from "expo-router";
 
 import { EntityListEmpty, EntityListItem } from "@/components/entity-list-item";
 import { SearchBar } from "@/components/search-bar";
+import { SourceFilter } from "@/components/source-filter";
+import { Colors } from "@/constants/colors";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { formatChallengeRating } from "@/lib/srd-format";
 import {
   DEFAULT_SOURCES,
   isSrdCategory,
   listSrdEntries,
-  listSrdSources,
   type SrdCategory,
   type SrdEntry,
-  type SrdSource,
 } from "@/lib/srd";
 
 const CATEGORY_LABELS: Record<SrdCategory, string> = {
@@ -63,9 +63,7 @@ export default function RulesCategoryListScreen() {
   const debouncedQuery = useDebouncedValue(query);
   const [entries, setEntries] = useState<SrdEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sources, setSources] = useState<SrdSource[]>([]);
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set(DEFAULT_SOURCES));
-  const [showSourcePanel, setShowSourcePanel] = useState(false);
   const requestId = useRef(0);
 
   useEffect(() => {
@@ -73,59 +71,16 @@ export default function RulesCategoryListScreen() {
   }, [category, navigation]);
 
   useEffect(() => {
-    listSrdSources().then(setSources);
-  }, []);
-
-  useEffect(() => {
     const thisRequest = ++requestId.current;
-    setLoading(true);
-    listSrdEntries(category, debouncedQuery, [...selectedSources]).then((result) => {
+    async function refreshEntries() {
+      setLoading(true);
+      const result = await listSrdEntries(category, debouncedQuery, [...selectedSources]);
       if (requestId.current !== thisRequest) return; // a newer request superseded this one
       setEntries(result);
       setLoading(false);
-    });
-  }, [category, debouncedQuery, selectedSources]);
-
-  // Kobold Press alone publishes a dozen+ separate sourcebooks — listing each
-  // as its own checkbox buried the source picker, so they're collapsed into
-  // a single "Kobold Press" toggle that selects/deselects all of them at once.
-  const { koboldPressSources, groupedSources } = useMemo(() => {
-    const kp: SrdSource[] = [];
-    const groups: Record<string, SrdSource[]> = {};
-    for (const source of sources) {
-      if (source.publisher?.key === "kobold-press") {
-        kp.push(source);
-        continue;
-      }
-      const gs = source.gamesystem?.name ?? "Other";
-      (groups[gs] ??= []).push(source);
     }
-    return { koboldPressSources: kp, groupedSources: groups };
-  }, [sources]);
-
-  const koboldPressKeys = useMemo(() => koboldPressSources.map((s) => s.key), [koboldPressSources]);
-  const koboldPressAllSelected =
-    koboldPressKeys.length > 0 && koboldPressKeys.every((key) => selectedSources.has(key));
-
-  function toggleSource(key: string) {
-    setSelectedSources((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
-
-  function toggleKoboldPress() {
-    setSelectedSources((prev) => {
-      const next = new Set(prev);
-      for (const key of koboldPressKeys) {
-        if (koboldPressAllSelected) next.delete(key);
-        else next.add(key);
-      }
-      return next;
-    });
-  }
+    void refreshEntries();
+  }, [category, debouncedQuery, selectedSources]);
 
   return (
     <View className="flex-1 bg-background">
@@ -133,78 +88,31 @@ export default function RulesCategoryListScreen() {
         <SearchBar
           value={query}
           onChangeText={setQuery}
-          placeholder={
-            category === "creatures"
-              ? "Search monsters or a CR (e.g. 1/2, 5)…"
-              : `Search ${CATEGORY_LABELS[category].toLowerCase()}…`
-          }
+          placeholder={`Search ${CATEGORY_LABELS[category].toLowerCase()}…`}
         />
-        <Pressable
-          onPress={() => setShowSourcePanel((v) => !v)}
-          className="self-start rounded-md border border-panel-border px-3 py-2 active:bg-white/5"
-        >
-          <Text className="text-sm text-foreground/80">
-            Sources ({selectedSources.size}) {showSourcePanel ? "▲" : "▼"}
-          </Text>
-        </Pressable>
-
-        {showSourcePanel && (
-          <View className="max-h-56 rounded-md border border-panel-border bg-panel p-3">
-            {koboldPressSources.length > 0 && (
-              <Pressable
-                onPress={toggleKoboldPress}
-                className="mb-3 flex-row items-center gap-1.5 border-b border-panel-border pb-2"
-              >
-                <View
-                  className={`h-4 w-4 rounded border ${koboldPressAllSelected ? "border-accent bg-accent" : "border-panel-border"}`}
-                />
-                <Text className="text-sm font-medium text-foreground">Kobold Press</Text>
-                <Text className="text-xs text-muted">({koboldPressSources.length} sourcebooks)</Text>
-              </Pressable>
-            )}
-            <FlatList
-              data={Object.entries(groupedSources)}
-              keyExtractor={([gamesystem]) => gamesystem}
-              renderItem={({ item: [gamesystem, list] }) => (
-                <View className="mb-3">
-                  <Text className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-                    {gamesystem}
-                  </Text>
-                  {list.map((source) => (
-                    <Pressable
-                      key={source.key}
-                      onPress={() => toggleSource(source.key)}
-                      className="flex-row items-center gap-1.5 py-1"
-                    >
-                      <View
-                        className={`h-4 w-4 rounded border ${selectedSources.has(source.key) ? "border-accent bg-accent" : "border-panel-border"}`}
-                      />
-                      <Text className="text-sm text-foreground">{source.display_name}</Text>
-                      {source.publisher && source.publisher.key !== "wizards-of-the-coast" && (
-                        <Text className="text-xs text-muted">({source.publisher.name})</Text>
-                      )}
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            />
-          </View>
-        )}
+        <SourceFilter selectedSources={selectedSources} onChange={setSelectedSources} />
       </View>
 
       {loading && (
         <View className="p-4">
-          <ActivityIndicator color="#d99a3f" />
+          <ActivityIndicator color={Colors.accent} />
         </View>
       )}
       {!loading && (
         <FlatList
           data={entries}
           keyExtractor={(item) => item.key}
-          ListEmptyComponent={<EntityListEmpty label="No results." />}
+          ListEmptyComponent={
+            <EntityListEmpty
+              label="No rules found"
+              detail="Try another search or broaden the selected sourcebooks."
+              icon="rules"
+            />
+          }
           renderItem={({ item }) => (
             <EntityListItem
               title={item.name}
+              icon="rules"
               subtitle={entrySubtitle(category, item)}
               onPress={() => router.push(`/rules/${category}/${item.key}`)}
             />

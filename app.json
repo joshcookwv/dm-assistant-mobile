@@ -16,7 +16,7 @@
     "android": {
       "package": "com.infernalbulldog.dmassistant",
       "adaptiveIcon": {
-        "backgroundColor": "#16130f",
+        "backgroundColor": "#0b0706",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -35,9 +35,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#16130f",
+          "backgroundColor": "#0b0706",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 220
         }
       ],
       "expo-sqlite",

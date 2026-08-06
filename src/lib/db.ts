@@ -65,6 +65,31 @@ function initSchema(db: SQLite.SQLiteDatabase) {
       value TEXT NOT NULL
     );
 
+    -- Session prep: PCs and monsters staged before game night, then dropped
+    -- into an encounter in one tap. Deliberately separate from
+    -- encounters.combatants (which is live combat state) — a session member is
+    -- a template that can be added to many encounters.
+    CREATE TABLE IF NOT EXISTS sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS session_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      max_hp INTEGER NOT NULL DEFAULT 0,
+      ac INTEGER,
+      is_pc INTEGER NOT NULL DEFAULT 0,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS bestiary (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -85,11 +110,34 @@ function initSchema(db: SQLite.SQLiteDatabase) {
   `);
 }
 
+/**
+ * An interim build shipped session prep as a single flat roster, before it grew
+ * into multiple named sessions. `CREATE TABLE IF NOT EXISTS` won't reshape that
+ * older table, so adopt its rows into one session rather than losing them.
+ */
+function migrateSessionMembers(db: SQLite.SQLiteDatabase) {
+  const columns = db.getAllSync<{ name: string }>("PRAGMA table_info(session_members)");
+  if (columns.length === 0 || columns.some((c) => c.name === "session_id")) return;
+
+  const existing = db.getFirstSync<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM session_members"
+  );
+  const result = db.runSync("INSERT INTO sessions (name) VALUES (?)", "My Session");
+  db.execSync(
+    `ALTER TABLE session_members ADD COLUMN session_id INTEGER NOT NULL DEFAULT ${result.lastInsertRowId}`
+  );
+  if (!existing?.count) {
+    // Nothing was actually staged — drop the placeholder session again.
+    db.runSync("DELETE FROM sessions WHERE id = ?", result.lastInsertRowId);
+  }
+}
+
 function createConnection(): SQLite.SQLiteDatabase {
   const db = SQLite.openDatabaseSync("app.db");
   db.execSync("PRAGMA journal_mode = WAL;");
   db.execSync("PRAGMA foreign_keys = ON;");
   initSchema(db);
+  migrateSessionMembers(db);
   return db;
 }
 

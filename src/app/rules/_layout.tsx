@@ -9,6 +9,7 @@ export default function RulesStackLayout() {
         name="index"
         options={{ title: "Rules", headerLeft: drawerToggleHeaderLeft }}
       />
+      <Stack.Screen name="quick-reference" options={{ title: "Quick Reference" }} />
       <Stack.Screen name="[category]" options={{ headerShown: false }} />
     </Stack>
   );

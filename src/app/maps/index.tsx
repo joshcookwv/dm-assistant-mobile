@@ -1,8 +1,9 @@
 import { useCallback, useState } from "react";
-import { FlatList, Pressable, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
+import { FlatList, View } from "react-native";
 
-import { EntityListEmpty } from "@/components/entity-list-item";
+import { EntityListEmpty, EntityListItem } from "@/components/entity-list-item";
+import { PrimaryButton } from "@/components/primary-button";
 import { SearchBar } from "@/components/search-bar";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { listMaps, type MapRecord } from "@/lib/maps";
@@ -22,29 +23,28 @@ export default function MapsListScreen() {
     <View className="flex-1 bg-background">
       <View className="gap-3 p-4">
         <SearchBar value={query} onChangeText={setQuery} placeholder="Search by name or tag…" />
-        <Pressable
-          onPress={() => router.push("/maps/new")}
-          className="items-center rounded-md bg-accent px-4 py-2.5 active:opacity-80"
-        >
-          <Text className="font-medium text-accent-foreground">+ New Map</Text>
-        </Pressable>
+        <PrimaryButton label="New Map" onPress={() => router.push("/maps/new")} />
       </View>
 
       <FlatList
         data={maps}
+        contentContainerClassName="pb-6"
         keyExtractor={(item) => String(item.id)}
-        ListEmptyComponent={<EntityListEmpty label="No maps yet." />}
+        ListEmptyComponent={
+          <EntityListEmpty
+            label={query ? "No maps found" : "No maps saved yet"}
+            detail={query ? "Try another name or tag." : "Keep battle maps, regional maps, and useful links close at hand."}
+            icon="maps"
+          />
+        }
         renderItem={({ item }) => (
-          <Pressable
+          <EntityListItem
+            title={item.name}
+            subtitle={item.tags || (item.type === "image" ? "Saved image" : "External map link")}
+            icon={item.type === "image" ? "image" : "link"}
+            badge={item.type === "image" ? "Image" : "Link"}
             onPress={() => router.push(`/maps/${item.id}`)}
-            className="flex-row items-center gap-2 border-b border-panel-border/50 px-4 py-3 active:bg-white/5"
-          >
-            <Text>{item.type === "image" ? "🖼️" : "🔗"}</Text>
-            <View>
-              <Text className="font-medium text-foreground">{item.name}</Text>
-              {!!item.tags && <Text className="mt-0.5 text-xs text-muted">{item.tags}</Text>}
-            </View>
-          </Pressable>
+          />
         )}
       />
     </View>

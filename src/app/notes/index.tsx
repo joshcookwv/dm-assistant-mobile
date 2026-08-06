@@ -1,8 +1,9 @@
 import { useCallback, useState } from "react";
-import { FlatList, Pressable, Text, View } from "react-native";
+import { FlatList, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 
 import { EntityListEmpty, EntityListItem } from "@/components/entity-list-item";
+import { PrimaryButton } from "@/components/primary-button";
 import { SearchBar } from "@/components/search-bar";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { listNotes, type Note } from "@/lib/notes";
@@ -31,21 +32,24 @@ export default function NotesListScreen() {
     <View className="flex-1 bg-background">
       <View className="gap-3 p-4">
         <SearchBar value={query} onChangeText={setQuery} placeholder="Search notes…" />
-        <Pressable
-          onPress={() => router.push("/notes/new")}
-          className="items-center rounded-md bg-accent px-4 py-2.5 active:opacity-80"
-        >
-          <Text className="font-medium text-accent-foreground">+ New Note</Text>
-        </Pressable>
+        <PrimaryButton label="New Note" onPress={() => router.push("/notes/new")} />
       </View>
 
       <FlatList
         data={notes}
+        contentContainerClassName="pb-6"
         keyExtractor={(item) => String(item.id)}
-        ListEmptyComponent={<EntityListEmpty label="No notes yet." />}
+        ListEmptyComponent={
+          <EntityListEmpty
+            label={query ? "No notes found" : "No campaign notes yet"}
+            detail={query ? "Try a broader search." : "Capture lore, clues, plans, and ideas as they happen."}
+            icon="notes"
+          />
+        }
         renderItem={({ item }) => (
           <EntityListItem
             title={item.title}
+            icon="document"
             subtitle={[formatDate(item.updated_at), item.tags].filter(Boolean).join(" · ")}
             onPress={() => router.push(`/notes/${item.id}`)}
           />

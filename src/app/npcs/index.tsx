@@ -1,8 +1,9 @@
 import { useCallback, useState } from "react";
-import { FlatList, Pressable, Text, View } from "react-native";
+import { FlatList, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 
 import { EntityListEmpty, EntityListItem } from "@/components/entity-list-item";
+import { PrimaryButton } from "@/components/primary-button";
 import { SearchBar } from "@/components/search-bar";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { listNpcs, type Npc } from "@/lib/npcs";
@@ -24,21 +25,24 @@ export default function NpcsListScreen() {
         <View className="flex-row items-center justify-between">
           <SearchBar value={query} onChangeText={setQuery} placeholder="Search by name, location, or tag…" />
         </View>
-        <Pressable
-          onPress={() => router.push("/npcs/new")}
-          className="items-center rounded-md bg-accent px-4 py-2.5 active:opacity-80"
-        >
-          <Text className="font-medium text-accent-foreground">+ New NPC</Text>
-        </Pressable>
+        <PrimaryButton label="New NPC" onPress={() => router.push("/npcs/new")} />
       </View>
 
       <FlatList
         data={npcs}
+        contentContainerClassName="pb-6"
         keyExtractor={(item) => String(item.id)}
-        ListEmptyComponent={<EntityListEmpty label="No NPCs yet." />}
+        ListEmptyComponent={
+          <EntityListEmpty
+            label={query ? "No NPCs found" : "Your roster is empty"}
+            detail={query ? "Try a different name, location, or tag." : "Add a recurring ally, rival, or quest giver."}
+            icon="npcs"
+          />
+        }
         renderItem={({ item }) => (
           <EntityListItem
             title={item.name}
+            icon="person"
             subtitle={[item.race, item.role].filter(Boolean).join(" · ")}
             onPress={() => router.push(`/npcs/${item.id}`)}
           />

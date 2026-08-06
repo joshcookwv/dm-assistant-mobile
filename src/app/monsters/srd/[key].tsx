@@ -4,21 +4,20 @@ import { useLocalSearchParams, useNavigation } from "expo-router";
 
 import { SrdDetail } from "@/components/srd-detail";
 import { Colors } from "@/constants/colors";
-import { getSrdEntry, isSrdCategory, type SrdCategory, type SrdEntry } from "@/lib/srd";
+import { getSrdEntry, type SrdEntry } from "@/lib/srd";
 
-export default function RulesEntryDetailScreen() {
-  const { category: categoryParam, key } = useLocalSearchParams<{ category: string; key: string }>();
+export default function SrdMonsterDetailScreen() {
+  const { key } = useLocalSearchParams<{ key: string }>();
   const navigation = useNavigation();
-  const category = isSrdCategory(categoryParam) ? categoryParam : ("spells" as SrdCategory);
 
   const [entry, setEntry] = useState<SrdEntry | null | undefined>(undefined);
 
   useEffect(() => {
-    getSrdEntry(category, key).then((found) => {
+    getSrdEntry("creatures", key).then((found) => {
       setEntry(found ?? null);
       if (found) navigation.setOptions({ title: found.name });
     });
-  }, [category, key, navigation]);
+  }, [key, navigation]);
 
   if (entry === undefined) {
     return (
@@ -31,14 +30,14 @@ export default function RulesEntryDetailScreen() {
   if (entry === null) {
     return (
       <View className="flex-1 items-center justify-center bg-background p-6">
-        <Text className="text-sm text-muted">This entry could not be found.</Text>
+        <Text className="text-sm text-muted">This monster could not be found.</Text>
       </View>
     );
   }
 
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="p-4">
-      <SrdDetail category={category} entry={entry} />
+      <SrdDetail category="creatures" entry={entry} />
     </ScrollView>
   );
 }

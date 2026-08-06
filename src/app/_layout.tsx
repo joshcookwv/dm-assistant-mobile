@@ -1,63 +1,113 @@
 import "@/global.css";
 
-import { Drawer } from "expo-router/drawer";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import {
+  Drawer,
+  DrawerContentScrollView,
+  DrawerItemList,
+  type DrawerContentComponentProps,
+} from "expo-router/drawer";
 import { StatusBar } from "expo-status-bar";
+import { Image, Text, View, type ColorValue } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AppIcon, type AppIconName } from "@/components/app-icon";
 import { Colors } from "@/constants/colors";
+
+function AppDrawerContent(props: DrawerContentComponentProps) {
+  return (
+    <DrawerContentScrollView {...props} contentContainerStyle={{ paddingTop: 0 }}>
+      <View className="mb-3 border-b border-panel-border bg-panel-raised px-5 pb-5 pt-7">
+        <View className="flex-row items-center gap-3">
+          <View className="h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-accent/40 bg-background">
+            <Image
+              source={require("../../assets/images/logo.png")}
+              style={{ width: 54, height: 54 }}
+              resizeMode="contain"
+            />
+          </View>
+          <View className="flex-1">
+            <Text className="text-lg font-bold text-foreground">DM Assistant</Text>
+            <Text className="mt-0.5 text-xs text-muted">Your table, organized</Text>
+          </View>
+        </View>
+      </View>
+      <DrawerItemList {...props} />
+    </DrawerContentScrollView>
+  );
+}
+
+function drawerIcon(name: AppIconName) {
+  return function DrawerIcon({ color, size }: { color: ColorValue; size: number }) {
+    return <AppIcon name={name} color={color} size={size} />;
+  };
+}
 
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style="light" />
-      <Drawer
-        screenOptions={{
-          // Edge-swipe-to-open is prone to misfiring from unrelated gestures
-          // and Activity transitions (e.g. returning from the Android
-          // document/image picker) — the hamburger button is the only
-          // intentional way to open the drawer.
-          swipeEnabled: false,
-          headerStyle: { backgroundColor: Colors.panel },
-          headerTintColor: Colors.foreground,
-          headerTitleStyle: { color: Colors.foreground },
-          drawerStyle: { backgroundColor: Colors.panel, width: 260 },
-          drawerActiveTintColor: Colors.accent,
-          drawerInactiveTintColor: Colors.muted,
-          drawerActiveBackgroundColor: `${Colors.accent}33`,
-          sceneStyle: { backgroundColor: Colors.background },
-        }}
-      >
-        <Drawer.Screen name="index" options={{ title: "Dashboard", drawerLabel: "Dashboard" }} />
+      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={["bottom"]}>
+        <StatusBar style="light" />
+        <Drawer
+          drawerContent={(props) => <AppDrawerContent {...props} />}
+          screenOptions={{
+            swipeEnabled: false,
+            headerStyle: { backgroundColor: Colors.panelRaised },
+            headerTintColor: Colors.foreground,
+            headerTitleStyle: { color: Colors.foreground, fontSize: 19, fontWeight: "700" },
+            headerShadowVisible: false,
+            drawerStyle: { backgroundColor: Colors.panel, width: 286 },
+            drawerItemStyle: { borderRadius: 12, marginHorizontal: 10, marginVertical: 2 },
+            drawerLabelStyle: { fontSize: 14, fontWeight: "600" },
+            drawerActiveTintColor: Colors.accentBright,
+            drawerInactiveTintColor: Colors.muted,
+            drawerActiveBackgroundColor: Colors.accentSoft,
+            overlayColor: "rgba(5, 2, 1, 0.72)",
+            sceneStyle: { backgroundColor: Colors.background },
+          }}
+        >
+        <Drawer.Screen
+          name="index"
+          options={{ title: "Dashboard", drawerLabel: "Dashboard", drawerIcon: drawerIcon("dashboard") }}
+        />
         <Drawer.Screen
           name="rules"
-          options={{ title: "Rules", drawerLabel: "Rules", headerShown: false }}
+          options={{ title: "Rules", drawerLabel: "Rules", drawerIcon: drawerIcon("rules"), headerShown: false }}
+        />
+        <Drawer.Screen
+          name="monsters"
+          options={{ title: "Monsters", drawerLabel: "Monsters", drawerIcon: drawerIcon("monsters"), headerShown: false }}
         />
         <Drawer.Screen
           name="npcs"
-          options={{ title: "NPCs", drawerLabel: "NPCs", headerShown: false }}
+          options={{ title: "NPCs", drawerLabel: "NPCs", drawerIcon: drawerIcon("npcs"), headerShown: false }}
         />
         <Drawer.Screen
           name="notes"
-          options={{ title: "Notes", drawerLabel: "Notes", headerShown: false }}
+          options={{ title: "Notes", drawerLabel: "Notes", drawerIcon: drawerIcon("notes"), headerShown: false }}
+        />
+        <Drawer.Screen
+          name="session"
+          options={{ title: "Session", drawerLabel: "Session", drawerIcon: drawerIcon("session"), headerShown: false }}
         />
         <Drawer.Screen
           name="encounters"
-          options={{ title: "Encounters", drawerLabel: "Encounters", headerShown: false }}
+          options={{ title: "Encounters", drawerLabel: "Encounters", drawerIcon: drawerIcon("encounters"), headerShown: false }}
         />
         <Drawer.Screen
           name="maps"
-          options={{ title: "Maps", drawerLabel: "Maps", headerShown: false }}
-        />
-        <Drawer.Screen
-          name="bestiary"
-          options={{ title: "Bestiary", drawerLabel: "Bestiary", headerShown: false }}
+          options={{ title: "Maps", drawerLabel: "Maps", drawerIcon: drawerIcon("maps"), headerShown: false }}
         />
         <Drawer.Screen
           name="import"
-          options={{ title: "Import PDF", drawerLabel: "Import PDF" }}
+          options={{ title: "Import PDF", drawerLabel: "Import PDF", drawerIcon: drawerIcon("import") }}
         />
-        <Drawer.Screen name="settings" options={{ title: "Settings", drawerLabel: "Settings" }} />
-      </Drawer>
+        <Drawer.Screen
+          name="settings"
+          options={{ title: "Settings", drawerLabel: "Settings", drawerIcon: drawerIcon("settings") }}
+        />
+        </Drawer>
+      </SafeAreaView>
     </GestureHandlerRootView>
   );
 }

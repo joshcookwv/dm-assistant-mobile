@@ -1,20 +1,15 @@
 import { useEffect, useState } from "react";
-import {
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Linking,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { Alert, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { router, useLocalSearchParams, useNavigation } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 
+import { AppIcon } from "@/components/app-icon";
 import { DeleteButton, DeleteConfirmBar } from "@/components/delete-confirm-bar";
 import { FormField } from "@/components/form-field";
+import { FormSection } from "@/components/form-section";
+import { PrimaryButton, SecondaryButton } from "@/components/primary-button";
+import { SaveToast } from "@/components/save-toast";
+import { Colors } from "@/constants/colors";
 import { saveImageToMaps } from "@/lib/local-files";
 import { createMap, deleteMap, getMap, updateMap, type MapInput, type MapType } from "@/lib/maps";
 
@@ -24,11 +19,11 @@ export default function MapDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const isNew = id === "new";
   const navigation = useNavigation();
-
   const [form, setForm] = useState<MapInput>(BLANK_FORM);
   const [pickedUri, setPickedUri] = useState<string | null>(null);
   const [existingFilePath, setExistingFilePath] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [savedToast, setSavedToast] = useState(false);
   const [pickError, setPickError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -85,6 +80,7 @@ export default function MapDetailScreen() {
         updateMap(Number(id), form);
         navigation.setOptions({ title: form.name });
       }
+      setSavedToast(true);
     } finally {
       setSaving(false);
     }
@@ -96,114 +92,64 @@ export default function MapDetailScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-background"
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView contentContainerClassName="gap-3 p-4">
-        {!isNew && form.type === "image" && existingFilePath && (
-          <Image
-            source={{ uri: existingFilePath }}
-            className="h-56 w-full rounded-md border border-panel-border"
-            resizeMode="contain"
-          />
-        )}
-        {!isNew && form.type === "link" && !!form.url && (
-          <Pressable
-            onPress={() => Linking.openURL(form.url!)}
-            className="items-center self-start rounded-md bg-accent px-4 py-2.5 active:opacity-80"
-          >
-            <Text className="font-medium text-accent-foreground">Open Map ↗</Text>
-          </Pressable>
-        )}
+    <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView contentContainerClassName="gap-4 p-4 pb-10" keyboardShouldPersistTaps="handled">
+        <FormSection title="Map details" description="Name and tag this location so it is quick to find during play." icon="maps">
+          <FormField label="Name" value={form.name} onChangeText={(name) => setForm({ ...form, name })} placeholder="The Sunken Temple" />
+          <FormField label="Tags" value={form.tags} onChangeText={(tags) => setForm({ ...form, tags })} placeholder="dungeon, act-2" />
+        </FormSection>
 
-        <FormField
-          label="Name"
-          value={form.name}
-          onChangeText={(name) => setForm({ ...form, name })}
-          placeholder="The Sunken Temple"
-        />
+        <FormSection title="Map source" description={isNew ? "Add an image from this device or save a link to an online map." : "Preview or open the saved map source."} icon={form.type === "image" ? "image" : "link"}>
+          {!isNew && form.type === "image" && existingFilePath ? (
+            <Image source={{ uri: existingFilePath }} className="h-60 w-full rounded-2xl border border-panel-border bg-background" resizeMode="contain" />
+          ) : null}
+          {!isNew && form.type === "link" && form.url ? (
+            <SecondaryButton label="Open saved map" icon="link" onPress={() => void Linking.openURL(form.url!)} />
+          ) : null}
 
-        {isNew && (
-          <View>
-            <Text className="text-xs font-medium text-muted">Type</Text>
-            <View className="mt-1 flex-row gap-4">
-              {(["image", "link"] as MapType[]).map((t) => (
-                <Pressable
-                  key={t}
-                  onPress={() => setForm({ ...form, type: t })}
-                  className="flex-row items-center gap-1.5"
-                >
-                  <View
-                    className={`h-4 w-4 rounded-full border ${form.type === t ? "border-accent bg-accent" : "border-panel-border"}`}
-                  />
-                  <Text className="text-sm text-foreground">
-                    {t === "image" ? "Upload image" : "External link"}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            {form.type === "image" ? (
-              <View className="mt-2 gap-2">
-                <Pressable
-                  onPress={handlePickImage}
-                  className="items-center self-start rounded-md border border-panel-border px-4 py-2 active:bg-white/5"
-                >
-                  <Text className="text-sm text-foreground">Choose image…</Text>
-                </Pressable>
-                {pickedUri && (
-                  <Image
-                    source={{ uri: pickedUri }}
-                    className="h-40 w-full rounded-md border border-panel-border"
-                    resizeMode="contain"
-                  />
-                )}
+          {isNew ? (
+            <>
+              <View className="flex-row gap-3">
+                {(["image", "link"] as MapType[]).map((type) => {
+                  const selected = form.type === type;
+                  return (
+                    <Pressable
+                      key={type}
+                      onPress={() => setForm({ ...form, type })}
+                      className={`flex-1 items-center gap-2 rounded-2xl border p-4 ${selected ? "border-accent bg-accent-soft" : "border-panel-border bg-panel-raised"}`}
+                    >
+                      <AppIcon name={type === "image" ? "image" : "link"} size={24} color={selected ? Colors.accentBright : Colors.muted} />
+                      <Text className={`text-sm font-semibold ${selected ? "text-accent-bright" : "text-foreground"}`}>
+                        {type === "image" ? "Device image" : "External link"}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
-            ) : (
-              <FormField
-                label=""
-                value={form.url ?? ""}
-                onChangeText={(url) => setForm({ ...form, url })}
-                placeholder="https://…"
-                autoCapitalize="none"
-                keyboardType="url"
-              />
-            )}
-            {pickError && <Text className="mt-1 text-sm text-red-400">{pickError}</Text>}
-          </View>
-        )}
+              {form.type === "image" ? (
+                <View className="gap-3">
+                  <SecondaryButton label={pickedUri ? "Choose a different image" : "Choose image"} icon="image" onPress={handlePickImage} />
+                  {pickedUri ? <Image source={{ uri: pickedUri }} className="h-52 w-full rounded-2xl border border-panel-border bg-background" resizeMode="contain" /> : null}
+                </View>
+              ) : (
+                <FormField label="Map URL" value={form.url ?? ""} onChangeText={(url) => setForm({ ...form, url })} placeholder="https://..." autoCapitalize="none" keyboardType="url" />
+              )}
+              {pickError ? <Text className="text-sm text-red-400">{pickError}</Text> : null}
+            </>
+          ) : null}
+        </FormSection>
 
-        <FormField
-          label="Tags"
-          value={form.tags}
-          onChangeText={(tags) => setForm({ ...form, tags })}
-          placeholder="dungeon, act-2"
-        />
-        <FormField
-          label="Notes"
-          value={form.notes}
-          onChangeText={(notes) => setForm({ ...form, notes })}
-          multiline
-        />
+        <FormSection title="DM notes" description="Keep location context, encounter hooks, or reveal instructions close by." icon="notes">
+          <FormField label="Notes" value={form.notes} onChangeText={(notes) => setForm({ ...form, notes })} placeholder="Hidden doors, keyed areas, encounter notes..." multiline className="min-h-40" />
+        </FormSection>
 
-        <View className="flex-row gap-2 pt-1">
-          <Pressable
-            onPress={handleSave}
-            disabled={saving || !form.name.trim()}
-            className="rounded-md bg-accent px-5 py-2.5 active:opacity-80 disabled:opacity-50"
-          >
-            <Text className="font-medium text-accent-foreground">{saving ? "Saving…" : "Save"}</Text>
-          </Pressable>
+        <View className="gap-3 pt-1">
+          <PrimaryButton label={saving ? "Saving..." : isNew ? "Add map" : "Save changes"} icon="check" onPress={handleSave} disabled={saving || !form.name.trim()} />
           {!isNew && !confirmingDelete && <DeleteButton onPress={() => setConfirmingDelete(true)} />}
         </View>
-        {!isNew && confirmingDelete && (
-          <DeleteConfirmBar
-            label="Delete this map?"
-            onConfirm={handleDelete}
-            onCancel={() => setConfirmingDelete(false)}
-          />
-        )}
+        {!isNew && confirmingDelete && <DeleteConfirmBar label="Delete this map?" onConfirm={handleDelete} onCancel={() => setConfirmingDelete(false)} />}
       </ScrollView>
+      <SaveToast visible={savedToast} message="Map saved" onHide={() => setSavedToast(false)} />
     </KeyboardAvoidingView>
   );
 }

@@ -12,6 +12,7 @@ import {
 import * as DocumentPicker from "expo-document-picker";
 import * as LegacyFileSystem from "expo-file-system/legacy";
 
+import { Colors } from "@/constants/colors";
 import { AiNotConfiguredError } from "@/lib/ai";
 import { createNpc } from "@/lib/npcs";
 import { createBestiaryMonster } from "@/lib/bestiary";
@@ -40,7 +41,7 @@ function Checkbox({ checked, onToggle }: { checked: boolean; onToggle: () => voi
 function SmallInput(props: React.ComponentProps<typeof TextInput> & { placeholder?: string }) {
   return (
     <TextInput
-      placeholderTextColor="#a89a80"
+      placeholderTextColor={Colors.muted}
       className="rounded border border-panel-border bg-background px-2 py-1.5 text-sm text-foreground"
       {...props}
     />
@@ -162,7 +163,7 @@ export default function ImportScreen() {
               className="items-center rounded-md bg-accent px-4 py-2.5 active:opacity-80 disabled:opacity-50"
             >
               {stage === "working" ? (
-                <ActivityIndicator color="#1a1408" />
+                <ActivityIndicator color={Colors.accentForeground} />
               ) : (
                 <Text className="font-medium text-accent-foreground">Choose PDF & Extract</Text>
               )}

@@ -1,15 +1,25 @@
 /**
- * Mirrors the color tokens in tailwind.config.js. Screen content should use
- * NativeWind className (e.g. `bg-panel`, `text-accent`) instead of these —
- * this file exists only for native navigator chrome (headers, drawer) that
- * takes style objects rather than classNames.
+ * Palette sampled from the app logo — an obsidian dragon wreathed in lava.
+ * The logo's own pixels run a near-black-to-ember ramp (#030201 → #430a01)
+ * topped by a #ff8300 lava highlight; these tokens are that ramp opened up
+ * enough to keep UI surfaces and text legible.
+ *
+ * Mirrors the token names in tailwind.config.js. Screens should use NativeWind
+ * classes (`bg-panel`, `text-accent`); this file is for the places that need a
+ * raw value — native navigator chrome, ActivityIndicator, placeholder text.
  */
 export const Colors = {
-  background: "#16130f",
-  foreground: "#f2ead9",
-  panel: "#211c15",
-  panelBorder: "#3a3225",
-  accent: "#d99a3f",
-  accentForeground: "#1a1408",
-  muted: "#a89a80",
+  background: "#0b0706",
+  foreground: "#fff5ed",
+  panel: "#17100d",
+  panelRaised: "#211510",
+  panelBorder: "#40271d",
+  accent: "#ff6b1a",
+  accentBright: "#ff9a4a",
+  accentSoft: "#3a170b",
+  accentForeground: "#1c0800",
+  muted: "#c4a79d",
+  subtle: "#80675f",
+  success: "#59c991",
+  danger: "#ff6b6b",
 } as const;

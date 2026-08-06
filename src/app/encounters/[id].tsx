@@ -1,49 +1,30 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { router, useLocalSearchParams, useNavigation } from "expo-router";
 import * as Crypto from "expo-crypto";
 
+import { AppIcon } from "@/components/app-icon";
 import { CombatantCard } from "@/components/combatant-card";
 import { DeleteButton, DeleteConfirmBar } from "@/components/delete-confirm-bar";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import {
-  deleteEncounter,
-  getEncounter,
-  updateEncounter,
-  type Combatant,
-  type Encounter,
-} from "@/lib/encounters";
-import { listBestiary } from "@/lib/bestiary";
-import { listSrdEntries } from "@/lib/srd";
+import { FormField } from "@/components/form-field";
+import { MonsterPickerModal } from "@/components/monster-picker-modal";
+import { PrimaryButton } from "@/components/primary-button";
+import { SessionPickerModal } from "@/components/session-picker-modal";
+import { Colors } from "@/constants/colors";
+import { deleteEncounter, getEncounter, updateEncounter, type Combatant, type Encounter } from "@/lib/encounters";
+import type { MonsterListItem } from "@/lib/monsters";
+import { listSessionMembers, listSessions, membersToCombatants, type SessionSummary } from "@/lib/session";
 
-type MonsterResult =
-  | { source: "srd"; key: string; name: string; hitPoints: number; armorClass: number | null }
-  | { source: "bestiary"; key: string; name: string; hitPoints: number; armorClass: number | null };
-
-function resortAndTrackActive(
-  combatants: Combatant[],
-  activeIndex: number
-): { combatants: Combatant[]; activeIndex: number } {
+function resortAndTrackActive(combatants: Combatant[], activeIndex: number): { combatants: Combatant[]; activeIndex: number } {
   const activeCombatant = combatants[activeIndex];
   const sorted = [...combatants].sort((a, b) => b.initiative - a.initiative);
-  const newActiveIndex = activeCombatant ? sorted.findIndex((c) => c.id === activeCombatant.id) : 0;
+  const newActiveIndex = activeCombatant ? sorted.findIndex((combatant) => combatant.id === activeCombatant.id) : 0;
   return { combatants: sorted, activeIndex: newActiveIndex === -1 ? 0 : newActiveIndex };
 }
 
 export default function EncounterDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation();
-
   const [encounter, setEncounter] = useState<Encounter | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -54,11 +35,9 @@ export default function EncounterDetailScreen() {
   const [newHp, setNewHp] = useState("");
   const [newAc, setNewAc] = useState("");
   const [newIsPc, setNewIsPc] = useState(false);
-
-  const [monsterQuery, setMonsterQuery] = useState("");
-  const debouncedMonsterQuery = useDebouncedValue(monsterQuery);
-  const [monsterResults, setMonsterResults] = useState<MonsterResult[]>([]);
-  const monsterRequestId = useRef(0);
+  const [customAddOpen, setCustomAddOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [sessionOptions, setSessionOptions] = useState<SessionSummary[] | null>(null);
 
   useEffect(() => {
     const found = getEncounter(Number(id));
@@ -70,37 +49,6 @@ export default function EncounterDetailScreen() {
     setEncounter(found);
     navigation.setOptions({ title: found.name });
   }, [id, navigation]);
-
-  useEffect(() => {
-    if (!debouncedMonsterQuery.trim()) {
-      setMonsterResults([]);
-      return;
-    }
-    const thisRequest = ++monsterRequestId.current;
-    // No source filter here (unlike the Rules browser) — a DM searching for a
-    // combatant mid-prep likely wants every source, including third-party.
-    Promise.all([
-      Promise.resolve(listBestiary(debouncedMonsterQuery)),
-      listSrdEntries("creatures", debouncedMonsterQuery),
-    ]).then(([bestiary, srd]) => {
-      if (monsterRequestId.current !== thisRequest) return; // superseded by a newer search
-      const bestiaryResults: MonsterResult[] = bestiary.slice(0, 5).map((m) => ({
-        source: "bestiary",
-        key: `bestiary-${m.id}`,
-        name: m.name,
-        hitPoints: m.hit_points ?? 0,
-        armorClass: m.armor_class,
-      }));
-      const srdResults: MonsterResult[] = srd.slice(0, 8).map((m) => ({
-        source: "srd",
-        key: m.key,
-        name: m.name,
-        hitPoints: (m.hit_points as number) ?? 0,
-        armorClass: typeof m.armor_class === "number" ? (m.armor_class as number) : null,
-      }));
-      setMonsterResults([...bestiaryResults, ...srdResults]);
-    });
-  }, [debouncedMonsterQuery]);
 
   useEffect(() => {
     if (!encounter || !dirtyRef.current) return;
@@ -118,20 +66,20 @@ export default function EncounterDetailScreen() {
     return () => clearTimeout(timeout);
   }, [encounter]);
 
-  function mutate(updater: (e: Encounter) => Encounter) {
-    setEncounter((prev) => (prev ? updater(prev) : prev));
+  function mutate(updater: (current: Encounter) => Encounter) {
+    setEncounter((previous) => (previous ? updater(previous) : previous));
     dirtyRef.current = true;
   }
 
   function handleRename(name: string) {
-    mutate((e) => ({ ...e, name }));
+    mutate((current) => ({ ...current, name }));
     navigation.setOptions({ title: name });
   }
 
   function addCombatant(combatant: Combatant) {
-    mutate((e) => {
-      const { combatants, activeIndex } = resortAndTrackActive([...e.combatants, combatant], e.active_index);
-      return { ...e, combatants, active_index: activeIndex };
+    mutate((current) => {
+      const { combatants, activeIndex } = resortAndTrackActive([...current.combatants, combatant], current.active_index);
+      return { ...current, combatants, active_index: activeIndex };
     });
   }
 
@@ -153,9 +101,10 @@ export default function EncounterDetailScreen() {
     setNewHp("");
     setNewAc("");
     setNewIsPc(false);
+    setCustomAddOpen(false);
   }
 
-  function handleAddMonster(monster: MonsterResult) {
+  function handleAddMonster(monster: MonsterListItem) {
     addCombatant({
       id: Crypto.randomUUID(),
       name: monster.name,
@@ -166,48 +115,67 @@ export default function EncounterDetailScreen() {
       conditions: "",
       isPc: false,
     });
-    setMonsterQuery("");
   }
 
-  function updateCombatant(cid: string, patch: Partial<Combatant>) {
-    mutate((e) => {
-      const updated = e.combatants.map((c) => (c.id === cid ? { ...c, ...patch } : c));
-      if (patch.initiative !== undefined) {
-        const { combatants, activeIndex } = resortAndTrackActive(updated, e.active_index);
-        return { ...e, combatants, active_index: activeIndex };
-      }
-      return { ...e, combatants: updated };
+  function addSessionRoster(sessionId: number) {
+    const staged = membersToCombatants(listSessionMembers(sessionId));
+    if (staged.length === 0) return;
+    mutate((current) => {
+      const { combatants, activeIndex } = resortAndTrackActive([...current.combatants, ...staged], current.active_index);
+      return { ...current, combatants, active_index: activeIndex };
     });
   }
 
-  function removeCombatant(cid: string) {
-    mutate((e) => {
-      const removedIndex = e.combatants.findIndex((c) => c.id === cid);
-      const remaining = e.combatants.filter((c) => c.id !== cid);
-      let activeIndex = e.active_index;
+  function handleAddFromSession() {
+    const staged = listSessions().filter((session) => session.combatantCount > 0);
+    if (staged.length === 0) {
+      Alert.alert("Nothing staged", "Add PCs or monsters to a session first.");
+      return;
+    }
+    if (staged.length === 1) {
+      addSessionRoster(staged[0].id);
+      return;
+    }
+    setSessionOptions(staged);
+  }
+
+  function updateCombatant(combatantId: string, patch: Partial<Combatant>) {
+    mutate((current) => {
+      const updated = current.combatants.map((combatant) => (combatant.id === combatantId ? { ...combatant, ...patch } : combatant));
+      if (patch.initiative !== undefined) {
+        const { combatants, activeIndex } = resortAndTrackActive(updated, current.active_index);
+        return { ...current, combatants, active_index: activeIndex };
+      }
+      return { ...current, combatants: updated };
+    });
+  }
+
+  function removeCombatant(combatantId: string) {
+    mutate((current) => {
+      const removedIndex = current.combatants.findIndex((combatant) => combatant.id === combatantId);
+      const remaining = current.combatants.filter((combatant) => combatant.id !== combatantId);
+      let activeIndex = current.active_index;
       if (removedIndex !== -1 && removedIndex < activeIndex) activeIndex -= 1;
       if (activeIndex >= remaining.length) activeIndex = 0;
-      return { ...e, combatants: remaining, active_index: Math.max(0, activeIndex) };
+      return { ...current, combatants: remaining, active_index: Math.max(0, activeIndex) };
     });
   }
 
   function nextTurn() {
-    mutate((e) => {
-      if (e.combatants.length === 0) return e;
-      const nextIndex = e.active_index + 1;
-      if (nextIndex >= e.combatants.length) return { ...e, active_index: 0, round: e.round + 1 };
-      return { ...e, active_index: nextIndex };
+    mutate((current) => {
+      if (current.combatants.length === 0) return current;
+      const nextIndex = current.active_index + 1;
+      if (nextIndex >= current.combatants.length) return { ...current, active_index: 0, round: current.round + 1 };
+      return { ...current, active_index: nextIndex };
     });
   }
 
   function prevTurn() {
-    mutate((e) => {
-      if (e.combatants.length === 0) return e;
-      const prevIndex = e.active_index - 1;
-      if (prevIndex < 0) {
-        return { ...e, active_index: e.combatants.length - 1, round: Math.max(1, e.round - 1) };
-      }
-      return { ...e, active_index: prevIndex };
+    mutate((current) => {
+      if (current.combatants.length === 0) return current;
+      const previousIndex = current.active_index - 1;
+      if (previousIndex < 0) return { ...current, active_index: current.combatants.length - 1, round: Math.max(1, current.round - 1) };
+      return { ...current, active_index: previousIndex };
     });
   }
 
@@ -218,140 +186,180 @@ export default function EncounterDetailScreen() {
 
   if (!encounter) return null;
 
+  const hasCombatants = encounter.combatants.length > 0;
+  const activeCombatant = hasCombatants ? encounter.combatants[encounter.active_index] : null;
+
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-background"
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView contentContainerClassName="gap-4 p-4">
-        <TextInput
-          value={encounter.name}
-          onChangeText={handleRename}
-          className="rounded-md border border-panel-border bg-background px-3 py-2 text-lg font-medium text-foreground"
-        />
+    <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView contentContainerClassName="gap-4 p-4 pb-10" keyboardShouldPersistTaps="handled">
+        <View className="overflow-hidden rounded-3xl border border-panel-border bg-panel">
+          <View className="border-b border-panel-border bg-panel-raised p-4">
+            <View className="flex-row items-center gap-2">
+              <View className="h-9 w-9 items-center justify-center rounded-xl bg-accent-soft">
+                <AppIcon name="encounters" size={18} color={Colors.accentBright} />
+              </View>
+              <Text className="text-xs font-black uppercase tracking-[2px] text-accent-bright">Encounter runner</Text>
+              <View className="flex-1" />
+              <View className="flex-row items-center gap-1.5 rounded-full border border-panel-border bg-background px-2.5 py-1.5">
+                {saveStatus === "saving" ? <ActivityIndicator size={11} color={Colors.accentBright} /> : <AppIcon name="check" size={12} color={saveStatus === "saved" ? Colors.success : Colors.muted} />}
+                <Text className="text-[10px] font-semibold text-muted">{saveStatus === "saving" ? "Saving" : saveStatus === "saved" ? "Saved" : "Autosave"}</Text>
+              </View>
+            </View>
+            <Text className="mt-3 text-[10px] font-bold uppercase tracking-wider text-muted">Encounter name</Text>
+            <TextInput value={encounter.name} onChangeText={handleRename} className="mt-1 py-0 text-xl font-black text-foreground" />
+          </View>
 
-        <View className="flex-row items-center gap-3">
-          <Pressable
-            onPress={prevTurn}
-            className="rounded-md border border-panel-border px-3 py-2 active:bg-white/5"
-          >
-            <Text className="text-sm text-foreground">← Prev</Text>
-          </Pressable>
-          <Text className="rounded-md bg-panel px-3 py-2 text-sm text-foreground">
-            Round <Text className="font-semibold text-accent">{encounter.round}</Text>
-          </Text>
-          <Pressable onPress={nextTurn} className="rounded-md bg-accent px-3 py-2 active:opacity-80">
-            <Text className="text-sm font-medium text-accent-foreground">Next Turn →</Text>
-          </Pressable>
-          <Text className="ml-auto text-xs text-muted">
-            {saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "All changes saved" : ""}
-          </Text>
-        </View>
+          <View className="p-4">
+            <View className="flex-row items-stretch gap-3">
+              <View className="w-24 items-center justify-center rounded-2xl bg-accent-soft px-3 py-3">
+                <Text className="text-[10px] font-black uppercase tracking-wider text-accent-bright">Round</Text>
+                <Text className="mt-0.5 text-3xl font-black text-foreground">{encounter.round}</Text>
+              </View>
+              <View className="flex-1 justify-center rounded-2xl border border-panel-border bg-background px-4 py-3">
+                <Text className="text-[10px] font-black uppercase tracking-wider text-muted">
+                  {hasCombatants ? `Turn ${encounter.active_index + 1} of ${encounter.combatants.length}` : "Initiative"}
+                </Text>
+                <Text className="mt-1 text-base font-bold text-foreground" numberOfLines={1}>
+                  {activeCombatant?.name ?? "No combatants yet"}
+                </Text>
+                <Text className="mt-0.5 text-xs text-muted">
+                  {activeCombatant ? `Initiative ${activeCombatant.initiative}` : "Add combatants below to begin."}
+                </Text>
+              </View>
+            </View>
 
-        <View className="gap-2">
-          {encounter.combatants.length === 0 && (
-            <Text className="p-3 text-center text-sm text-muted">No combatants yet — add one below.</Text>
-          )}
-          {encounter.combatants.map((c, i) => (
-            <CombatantCard
-              key={c.id}
-              combatant={c}
-              isActive={i === encounter.active_index}
-              onUpdate={(patch) => updateCombatant(c.id, patch)}
-              onRemove={() => removeCombatant(c.id)}
-            />
-          ))}
-        </View>
-
-        <View className="rounded-md border border-panel-border bg-panel p-4">
-          <Text className="text-sm font-semibold text-accent">Add Combatant</Text>
-          <View className="mt-2 flex-row flex-wrap gap-2">
-            <View>
-              <Text className="text-xs text-muted">Name</Text>
-              <TextInput
-                value={newName}
-                onChangeText={setNewName}
-                className="mt-1 w-28 rounded border border-panel-border bg-background px-2 py-1.5 text-sm text-foreground"
-              />
-            </View>
-            <View>
-              <Text className="text-xs text-muted">Init</Text>
-              <TextInput
-                value={newInitiative}
-                onChangeText={setNewInitiative}
-                keyboardType="numbers-and-punctuation"
-                className="mt-1 w-14 rounded border border-panel-border bg-background px-2 py-1.5 text-sm text-foreground"
-              />
-            </View>
-            <View>
-              <Text className="text-xs text-muted">HP</Text>
-              <TextInput
-                value={newHp}
-                onChangeText={setNewHp}
-                keyboardType="numbers-and-punctuation"
-                className="mt-1 w-14 rounded border border-panel-border bg-background px-2 py-1.5 text-sm text-foreground"
-              />
-            </View>
-            <View>
-              <Text className="text-xs text-muted">AC</Text>
-              <TextInput
-                value={newAc}
-                onChangeText={setNewAc}
-                keyboardType="numbers-and-punctuation"
-                className="mt-1 w-14 rounded border border-panel-border bg-background px-2 py-1.5 text-sm text-foreground"
-              />
-            </View>
-            <View className="flex-row items-center gap-1.5">
-              <Text className="text-xs text-muted">PC</Text>
-              <Switch value={newIsPc} onValueChange={setNewIsPc} />
+            <View className="mt-3 flex-row gap-2">
+              <Pressable
+                onPress={prevTurn}
+                disabled={!hasCombatants}
+                className="min-h-12 flex-1 flex-row items-center justify-center gap-2 rounded-xl border border-panel-border bg-panel-raised px-3 active:bg-white/5 disabled:opacity-35"
+              >
+                <AppIcon name="chevronLeft" size={17} color={Colors.foreground} />
+                <Text className="text-sm font-semibold text-foreground">Previous</Text>
+              </Pressable>
+              <Pressable
+                onPress={nextTurn}
+                disabled={!hasCombatants}
+                className="min-h-12 flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-accent px-3 active:bg-accent-bright disabled:opacity-35"
+              >
+                <Text className="text-sm font-black text-accent-foreground">Next turn</Text>
+                <AppIcon name="chevronRight" size={17} color={Colors.accentForeground} />
+              </Pressable>
             </View>
           </View>
-          <Pressable
-            onPress={handleAddCustom}
-            disabled={!newName.trim()}
-            className="mt-2 items-center self-start rounded-md bg-accent px-4 py-2 active:opacity-80 disabled:opacity-50"
-          >
-            <Text className="text-sm font-medium text-accent-foreground">Add</Text>
-          </Pressable>
         </View>
 
-        <View className="rounded-md border border-panel-border bg-panel p-4">
-          <Text className="text-sm font-semibold text-accent">Add Monster</Text>
-          <TextInput
-            value={monsterQuery}
-            onChangeText={setMonsterQuery}
-            placeholder="Search SRD & your bestiary…"
-            placeholderTextColor="#a89a80"
-            className="mt-2 rounded border border-panel-border bg-background px-2 py-1.5 text-sm text-foreground"
-          />
-          {monsterResults.map((m) => (
-            <Pressable
-              key={m.key}
-              onPress={() => handleAddMonster(m)}
-              className="mt-1 flex-row items-center justify-between rounded border border-panel-border px-2 py-1.5 active:bg-white/5"
-            >
-              <Text className="text-sm text-foreground">
-                {m.name}
-                {m.source === "bestiary" && <Text className="text-xs text-accent"> (Homebrew)</Text>}
-              </Text>
-              <Text className="text-xs text-muted">
-                HP {m.hitPoints} · AC {m.armorClass ?? "?"}
-              </Text>
-            </Pressable>
+        <View className="flex-row items-end justify-between px-1">
+          <View>
+            <Text className="text-lg font-black text-foreground">Initiative order</Text>
+            <Text className="mt-0.5 text-xs text-muted">Updates automatically when initiative changes.</Text>
+          </View>
+          <View className="rounded-full bg-panel-raised px-3 py-1.5">
+            <Text className="text-xs font-bold text-muted">{encounter.combatants.length} total</Text>
+          </View>
+        </View>
+
+        <View className="gap-3">
+          {!hasCombatants ? (
+            <View className="items-center rounded-3xl border border-dashed border-panel-border bg-panel px-6 py-10">
+              <View className="h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft">
+                <AppIcon name="encounters" size={27} color={Colors.accentBright} />
+              </View>
+              <Text className="mt-4 text-base font-bold text-foreground">Build the initiative order</Text>
+              <Text className="mt-1 max-w-72 text-center text-sm leading-5 text-muted">Add a monster, import a prepared session roster, or create a custom combatant.</Text>
+            </View>
+          ) : null}
+          {encounter.combatants.map((combatant, index) => (
+            <CombatantCard
+              key={combatant.id}
+              combatant={combatant}
+              isActive={index === encounter.active_index}
+              onUpdate={(patch) => updateCombatant(combatant.id, patch)}
+              onRemove={() => removeCombatant(combatant.id)}
+            />
           ))}
         </View>
 
-        <View className="flex-row gap-2 border-t border-panel-border pt-3">
-          {!confirmingDelete && <DeleteButton onPress={() => setConfirmingDelete(true)} />}
-          {confirmingDelete && (
-            <DeleteConfirmBar
-              label="Delete this encounter?"
-              onConfirm={handleDelete}
-              onCancel={() => setConfirmingDelete(false)}
-            />
-          )}
+        <View className="gap-3 rounded-3xl border border-panel-border bg-panel p-4">
+          <View className="flex-row items-center gap-3">
+            <View className="h-10 w-10 items-center justify-center rounded-xl bg-accent-soft">
+              <AppIcon name="add" size={21} color={Colors.accentBright} />
+            </View>
+            <View className="flex-1">
+              <Text className="text-base font-black text-foreground">Add combatants</Text>
+              <Text className="mt-0.5 text-xs text-muted">Choose a source or enter someone manually.</Text>
+            </View>
+          </View>
+
+          <View className="flex-row gap-2">
+            <Pressable onPress={() => setPickerOpen(true)} className="min-h-24 flex-1 items-center justify-center gap-2 rounded-2xl border border-panel-border bg-panel-raised p-3 active:bg-white/5">
+              <AppIcon name="monsters" size={23} color={Colors.accentBright} />
+              <Text className="text-center text-sm font-bold text-foreground">Monster</Text>
+              <Text className="text-center text-[10px] text-muted">Search bestiary</Text>
+            </Pressable>
+            <Pressable onPress={handleAddFromSession} className="min-h-24 flex-1 items-center justify-center gap-2 rounded-2xl border border-panel-border bg-panel-raised p-3 active:bg-white/5">
+              <AppIcon name="session" size={23} color={Colors.accentBright} />
+              <Text className="text-center text-sm font-bold text-foreground">Session</Text>
+              <Text className="text-center text-[10px] text-muted">Import roster</Text>
+            </Pressable>
+          </View>
+
+          <Pressable
+            onPress={() => setCustomAddOpen((open) => !open)}
+            className="min-h-12 flex-row items-center justify-center gap-2 rounded-xl border border-panel-border bg-background px-4 active:bg-white/5"
+          >
+            <AppIcon name="person" size={17} color={Colors.accentBright} />
+            <Text className="text-sm font-semibold text-foreground">Custom combatant</Text>
+            <AppIcon name={customAddOpen ? "chevronUp" : "chevronDown"} size={16} color={Colors.muted} />
+          </Pressable>
+
+          {customAddOpen ? (
+            <View className="gap-4 border-t border-panel-border pt-4">
+              <FormField label="Name" value={newName} onChangeText={setNewName} placeholder="Goblin scout" />
+              <View className="flex-row gap-3">
+                <View className="flex-1">
+                  <FormField label="Initiative" value={newInitiative} onChangeText={setNewInitiative} keyboardType="numbers-and-punctuation" placeholder="12" />
+                </View>
+                <View className="flex-1">
+                  <FormField label="HP" value={newHp} onChangeText={setNewHp} keyboardType="numbers-and-punctuation" placeholder="7" />
+                </View>
+                <View className="flex-1">
+                  <FormField label="AC" value={newAc} onChangeText={setNewAc} keyboardType="numbers-and-punctuation" placeholder="15" />
+                </View>
+              </View>
+              <View className="flex-row items-center gap-3 rounded-2xl border border-panel-border bg-panel-raised p-3.5">
+                <View className="flex-1">
+                  <Text className="text-sm font-semibold text-foreground">Player character</Text>
+                  <Text className="mt-0.5 text-xs text-muted">Use the PC color treatment.</Text>
+                </View>
+                <Switch
+                  value={newIsPc}
+                  onValueChange={setNewIsPc}
+                  trackColor={{ false: Colors.panelBorder, true: Colors.accent }}
+                  thumbColor={Colors.foreground}
+                />
+              </View>
+              <PrimaryButton label="Add combatant" icon="add" onPress={handleAddCustom} disabled={!newName.trim()} />
+            </View>
+          ) : null}
+        </View>
+
+        <View className="gap-3 border-t border-panel-border pt-4">
+          {!confirmingDelete ? <DeleteButton label="Delete encounter" onPress={() => setConfirmingDelete(true)} /> : null}
+          {confirmingDelete ? <DeleteConfirmBar label="Delete this encounter?" onConfirm={handleDelete} onCancel={() => setConfirmingDelete(false)} /> : null}
         </View>
       </ScrollView>
+
+      <MonsterPickerModal visible={pickerOpen} onClose={() => setPickerOpen(false)} onSelect={handleAddMonster} />
+      <SessionPickerModal
+        visible={sessionOptions !== null}
+        sessions={sessionOptions ?? []}
+        onClose={() => setSessionOptions(null)}
+        onSelect={(session) => {
+          addSessionRoster(session.id);
+          setSessionOptions(null);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
