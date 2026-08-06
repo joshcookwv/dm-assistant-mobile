@@ -16,7 +16,20 @@ A native mobile port of the DM Assistant desktop/web app — same idea, but no P
 
 ## Screenshots
 
-_Pending re-capture — the app was rebranded with a new D20 logo and dark-ember color scheme, so the old screenshots (amber theme, separate Bestiary/Session tabs) no longer match the current app. New captures go here once taken from the latest build._
+<table>
+<tr>
+<td width="33%"><img src="docs/screenshots/Dashboard.jpg" alt="Dashboard" /><br/><sub>Dashboard — campaign command center, at-a-glance counts, recent notes</sub></td>
+<td width="33%"><img src="docs/screenshots/Monster-2.jpg" alt="Monster detail" /><br/><sub>Monsters — official SRD stat blocks with art, alongside your homebrew</sub></td>
+<td width="33%"><img src="docs/screenshots/Encounter-2.jpg" alt="Combat tracker" /><br/><sub>Encounters — live initiative, HP, and AC tracking, autosaving as you play</sub></td>
+</tr>
+<tr>
+<td width="33%"><img src="docs/screenshots/NPC-2.jpg" alt="NPC with AI-suggested description" /><br/><sub>NPCs — AI-assisted name/description suggestions</sub></td>
+<td width="33%"><img src="docs/screenshots/Session-2.jpg" alt="Prepared session roster" /><br/><sub>Session — stage PCs and monsters ahead of game night</sub></td>
+<td width="33%"><img src="docs/screenshots/Rules.jpg" alt="Rules browser" /><br/><sub>Rules — offline SRD categories, browsable with no connection</sub></td>
+</tr>
+</table>
+
+More captures (NPCs, Notes, Maps, PDF import, Settings) are in [`docs/screenshots/`](docs/screenshots/).
 
 ## Features
 

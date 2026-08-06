@@ -30,7 +30,7 @@ Since there's no iOS build yet at all (see README), doing Android first gets som
 - [ ] **Target audience & content**: mark as not directed at children (13+ is the realistic floor given D&D content).
 - [ ] **App icon** for the store listing: 512×512 PNG, 32-bit with alpha. The in-app icon (`assets/images/icon.png`) is 1024×1024 and can be downscaled.
 - [ ] **Feature graphic**: 1024×500 PNG/JPG, shown at the top of the store listing — not yet made.
-- [ ] **Screenshots**: minimum 2, Play Store recommends 4–8. Phone screenshots need to be actual device captures (not simulator chrome) at a minimum 320px, max 3840px on the longest side. Previous captures were removed after the D20-logo/dark-ember rebrand made them stale (old amber theme, separate Bestiary/Session tabs) — needs a fresh set from the current build, same folder (`docs/screenshots/`), same set doubling as the README's showcase images.
+- [x] **Screenshots**: minimum 2, Play Store recommends 4–8. Phone screenshots need to be actual device captures (not simulator chrome) at a minimum 320px, max 3840px on the longest side. Re-captured post-rebrand — see [`docs/screenshots/`](screenshots/) and the preview below. 15 real device captures at 1080×2340, well within Play's size requirements; a subset doubles as the README's showcase images.
 - [ ] **Short description**: max 80 characters.
 - [ ] **Full description**: max 4000 characters.
 
@@ -38,13 +38,26 @@ Since there's no iOS build yet at all (see README), doing Android first gets som
 
 - [ ] iOS build doesn't exist yet — out of scope for a Play Store submission, but blocks any App Store submission.
 - [x] `production`-profile build succeeded (outputs an `.aab`, the Play Store submission format — not directly installable). A `preview`-profile build (same stripped-down non-dev-client code, but an installable `.apk`) has been built for on-device testing after each major change, most recently post-rebrand/UI-refresh — see [`builds/dm-assistant-mobile-v1.0.0-preview.apk`](../builds/). **Still pending:** a multi-day on-device pass through every feature on that standalone build before it's considered store-ready.
-- [ ] Screenshots — see section 3 above; pending re-capture after the rebrand.
+- [x] Screenshots captured — see section 3 above.
 - [ ] Confirm the bundled SRD content's licensing (OGL/CC via Open5e) is compatible with distribution inside a store-listed app, not just a source repo — the original web app's README asserts this is fine since "no SRD content is included in this repository itself" (fetched at setup time), but this mobile app **does** bundle the SRD data directly inside the app package (`assets/srd/`) rather than fetching it at runtime. Worth a deliberate read of the OGL 1.0a / CC-BY-4.0 terms for redistribution-inside-a-binary before submitting, even though this is very likely fine (this is exactly what Open5e's license grants are for) — flagging it as a real "read it, don't just assume" item rather than glossing over it.
 - [ ] Decide what happens to the currently-installed `com.joshcook.dmassistant` dev-client build on your test device — it's now a different package than the renamed `com.infernalbulldog.dmassistant`, so it's an orphaned install you can uninstall whenever.
 
 ## Screenshot preview
 
-_Pending — old captures were removed after the rebrand (see section 3). Re-add this table once fresh screenshots exist in `docs/screenshots/`._
+<table>
+<tr>
+<td width="33%"><img src="screenshots/Dashboard.jpg" width="220" alt="Dashboard" /></td>
+<td width="33%"><img src="screenshots/Monster-2.jpg" width="220" alt="Monster detail" /></td>
+<td width="33%"><img src="screenshots/Encounter-2.jpg" width="220" alt="Combat tracker" /></td>
+</tr>
+<tr>
+<td width="33%"><img src="screenshots/NPC-2.jpg" width="220" alt="NPC with AI-suggested description" /></td>
+<td width="33%"><img src="screenshots/Session-2.jpg" width="220" alt="Prepared session roster" /></td>
+<td width="33%"><img src="screenshots/Rules.jpg" width="220" alt="Rules browser" /></td>
+</tr>
+</table>
+
+Nine more captures not shown above (`API-Settings`, `Encounter-1`, `Map-Import`, `Monster-1`, `NPC-1`, `NPC-3`, `Notes`, `PDF-Import`, `Session-1`) are available in the same folder if the listing wants more than 6.
 
 ## 5. Draft listing copy
 
