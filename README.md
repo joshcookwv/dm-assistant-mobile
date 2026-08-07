@@ -45,10 +45,11 @@ More captures (NPCs, Notes, Maps, PDF import, Settings) are in [`docs/screenshot
 
 ## Installing
 
-Not on a store yet — see [`docs/store-submission.md`](docs/store-submission.md) for that plan. Two Android builds live in [`builds/`](builds/) (tracked via Git LFS):
+Not on a store yet — see [`docs/store-submission.md`](docs/store-submission.md) for that plan. Three Android builds live in [`builds/`](builds/) (tracked via Git LFS):
 
 - **`*-preview.apk`** — standalone, install and run on its own like any normal app, no computer needed. This is what you want for just trying it out.
 - **`*-dev.apk`** — a development-client build for active coding on this repo. After installing it, run `npm install && npx expo start` and open the app — it connects to the dev server automatically over the same WiFi network.
+- **`*-production.aab`** — the actual Play Store submission artifact. Not directly installable (Android App Bundles need Play Console or `bundletool` to produce an installable APK) — this one's for store upload, not for trying the app out.
 
 **iOS:** no build yet.
 

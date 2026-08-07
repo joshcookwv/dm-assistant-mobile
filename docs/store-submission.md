@@ -13,10 +13,10 @@ Since there's no iOS build yet at all (see README), doing Android first gets som
 
 ## 2. Before building for production
 
-- [ ] Switch from the `development` EAS build profile (dev-client, ~243MB, needs a Metro connection) to `production` (`eas.json` already has this profile — it strips dev-client tooling and produces a real release build, likely well under 100MB even with the bundled SRD data).
-- [ ] Decide on versioning: `eas.json` already sets `"appVersionSource": "remote"` and `production.autoIncrement: true`, so EAS manages the build number automatically — just bump `"version"` in `app.json` for user-facing releases (currently `1.0.0`).
-- [ ] Let EAS manage the Android signing keystore (default behavior, `eas build --profile production --platform android`) unless there's a reason to supply your own.
-- [ ] Test the actual production build on-device before submitting — dev and production builds can behave differently (this project in particular: PDF import only started working under a real dev-client build vs. Expo Go, so don't assume production behaves identically to the development build without checking).
+- [x] Switch from `development` to `production` EAS profile — built 2026-08-07, `.aab`, 83MB, versionCode auto-incremented to 3 (see [`builds/dm-assistant-mobile-v1.0.0-production.aab`](../builds/)). **This is the Play Store submission artifact — it is not directly installable on a device**, unlike the `.apk` files also in that folder.
+- [x] Versioning: `eas.json`'s `"appVersionSource": "remote"` + `production.autoIncrement: true` handled the build number automatically (2 → 3). `"version"` in `app.json` stays `1.0.0` until the first real user-facing release.
+- [x] EAS-managed Android signing keystore — default behavior, used automatically.
+- [ ] **Test the actual production `.aab` on-device before submitting** — still outstanding. `.aab` isn't directly installable, so this needs either `bundletool` to derive an installable `.apk` locally, or Play Console's internal testing track (uploads the `.aab`, gives you an installable link). Dev and production builds can behave differently (this project in particular: PDF import only started working under a real dev-client build vs. Expo Go), so don't assume production behaves identically to the `preview` build already tested without checking.
 
 ## 3. Required before Play Store will accept the listing
 
@@ -37,10 +37,10 @@ Since there's no iOS build yet at all (see README), doing Android first gets som
 ## 4. Known gaps to resolve before submitting (not just before it "looks nice")
 
 - [ ] iOS build doesn't exist yet — out of scope for a Play Store submission, but blocks any App Store submission.
-- [x] `production`-profile build succeeded (outputs an `.aab`, the Play Store submission format — not directly installable). A `preview`-profile build (same stripped-down non-dev-client code, but an installable `.apk`) has been built for on-device testing after each major change, most recently post-rebrand/UI-refresh — see [`builds/dm-assistant-mobile-v1.0.0-preview.apk`](../builds/). **Still pending:** a multi-day on-device pass through every feature on that standalone build before it's considered store-ready.
+- [x] `production`-profile build succeeded (outputs an `.aab`, the Play Store submission format — not directly installable) — see section 2 above. A `preview`-profile build (same stripped-down non-dev-client code, but an installable `.apk`) has been built for on-device testing after each major change, most recently post-rebrand/UI-refresh — see [`builds/dm-assistant-mobile-v1.0.0-preview.apk`](../builds/). Multi-day on-device pass on that standalone build: **complete.**
 - [x] Screenshots captured — see section 3 above.
 - [x] **SRD content licensing — researched and fixed.** Full writeup in section 7 below. Verdict was: both OGL 1.0a and CC-BY-4.0 explicitly permit exactly this (compiling into a distributed app, commercial use included) — bundling vs. fetching-at-runtime makes no legal difference — but the app was missing the notice/attribution text both licenses make mandatory as the condition of that permission. **Fixed:** added a Legal &amp; Licenses screen (`src/app/settings/legal.tsx`, reached via a button at the bottom of Settings) containing the CC-BY attribution sentences, the full OGL 1.0a text, and the generated Section 15 notice.
-- [ ] Decide what happens to the currently-installed `com.joshcook.dmassistant` dev-client build on your test device — it's now a different package than the renamed `com.infernalbulldog.dmassistant`, so it's an orphaned install you can uninstall whenever.
+- [ ] Uninstall the orphaned `com.joshcook.dmassistant` dev-client build from your test device — it's a different package than the current `com.infernalbulldog.dmassistant`, so it's safe to remove, but has to be done on-device (long-press the icon → Uninstall).
 
 ## Screenshot preview
 
