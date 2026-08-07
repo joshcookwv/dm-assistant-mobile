@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { Linking, Pressable, ScrollView, Text, View } from "react-native";
+import { router } from "expo-router";
 
 import { FormField } from "@/components/form-field";
 import { deleteApiKey, getApiKey, setApiKey } from "@/lib/secure-settings";
+
+const SUPPORT_ISSUES_URL = "https://github.com/joshcookwv/dm-assistant-mobile-support/issues/new";
 
 type TestStatus = "idle" | "testing" | "success" | "error";
 
@@ -82,7 +85,7 @@ export default function SettingsScreen() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="p-4">
+    <ScrollView className="flex-1 bg-background" contentContainerClassName="p-4 pb-8">
       <Text className="text-sm text-muted">
         Add your Claude API key to enable AI-assisted features (NPC suggestions, PDF import, and more).
       </Text>
@@ -156,6 +159,23 @@ export default function SettingsScreen() {
           Your key is stored in this device&apos;s secure keychain and is only ever sent directly to
           Anthropic&apos;s API.
         </Text>
+      </View>
+
+      <View className="mt-6 gap-2">
+        <Pressable
+          onPress={() => router.push("/settings/legal")}
+          className="rounded-md border border-panel-border bg-panel px-4 py-3 active:bg-white/5"
+        >
+          <Text className="text-sm font-medium text-foreground">Legal &amp; Licenses</Text>
+          <Text className="mt-0.5 text-xs text-muted">SRD content attributions and open-source licenses</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => Linking.openURL(SUPPORT_ISSUES_URL)}
+          className="rounded-md border border-panel-border bg-panel px-4 py-3 active:bg-white/5"
+        >
+          <Text className="text-sm font-medium text-foreground">Report an Issue</Text>
+          <Text className="mt-0.5 text-xs text-muted">Opens the public issue tracker in your browser</Text>
+        </Pressable>
       </View>
     </ScrollView>
   );

@@ -20,7 +20,7 @@ Since there's no iOS build yet at all (see README), doing Android first gets som
 
 ## 3. Required before Play Store will accept the listing
 
-- [ ] **Privacy policy URL.** Mandatory even though this app collects no analytics/telemetry and has no backend — Play Console requires a reachable policy page regardless. See the draft at the bottom of this doc; host it somewhere public (a GitHub Pages page off this repo works, or any static host) and put the URL in Play Console's "App content" → "Privacy policy" field.
+- [x] **Privacy policy URL.** Live at https://joshcookwv.github.io/dm-assistant-mobile-support/ — a small standalone public repo ([`joshcookwv/dm-assistant-mobile-support`](https://github.com/joshcookwv/dm-assistant-mobile-support)) since the app's source repo is private and GitHub Pages can't be made public from a private repo without a paid plan. Same page also hosts the public issue tracker, linked from the app's Settings screen. **Still needed:** paste this URL into Play Console's "App content" → "Privacy policy" field once you're in there.
 - [ ] **Data safety form** (Play Console → App content → Data safety). Draft answers:
   - Does your app collect or share user data? **Yes** — campaign content (NPC names/details, PDF contents) is sent to Anthropic's API, but *only* when the user actively taps an AI feature and *only* after the user supplies their own API key.
   - Data collected: none stored or transmitted by the app's own servers (it has none). Third-party sharing: user-initiated content sent to Anthropic when AI features are used.
@@ -39,7 +39,7 @@ Since there's no iOS build yet at all (see README), doing Android first gets som
 - [ ] iOS build doesn't exist yet — out of scope for a Play Store submission, but blocks any App Store submission.
 - [x] `production`-profile build succeeded (outputs an `.aab`, the Play Store submission format — not directly installable). A `preview`-profile build (same stripped-down non-dev-client code, but an installable `.apk`) has been built for on-device testing after each major change, most recently post-rebrand/UI-refresh — see [`builds/dm-assistant-mobile-v1.0.0-preview.apk`](../builds/). **Still pending:** a multi-day on-device pass through every feature on that standalone build before it's considered store-ready.
 - [x] Screenshots captured — see section 3 above.
-- [x] **SRD content licensing — researched, verdict: not a bundling problem, but a missing-notices problem.** Full writeup in section 7 below. Short version: both OGL 1.0a and CC-BY-4.0 explicitly permit exactly this (compiling into a distributed app, commercial use included) — bundling vs. fetching-at-runtime makes no legal difference, both are "Distribution"/"Sharing" under these licenses. What the app is actually missing is the **notice/attribution text both licenses make mandatory as the condition of that permission** — right now there is zero license or attribution text anywhere in the app. **Not yet fixed — needs a new in-app Legal/Licenses screen; flagged to the user rather than built unprompted since it's a new UI surface.**
+- [x] **SRD content licensing — researched and fixed.** Full writeup in section 7 below. Verdict was: both OGL 1.0a and CC-BY-4.0 explicitly permit exactly this (compiling into a distributed app, commercial use included) — bundling vs. fetching-at-runtime makes no legal difference — but the app was missing the notice/attribution text both licenses make mandatory as the condition of that permission. **Fixed:** added a Legal &amp; Licenses screen (`src/app/settings/legal.tsx`, reached via a button at the bottom of Settings) containing the CC-BY attribution sentences, the full OGL 1.0a text, and the generated Section 15 notice.
 - [ ] Decide what happens to the currently-installed `com.joshcook.dmassistant` dev-client build on your test device — it's now a different package than the renamed `com.infernalbulldog.dmassistant`, so it's an orphaned install you can uninstall whenever.
 
 ## Screenshot preview
@@ -97,9 +97,9 @@ Tools, or Entertainment (Play Console offers both — Tools fits the "utility ap
 ### Tags/keywords (not a formal Play Store field, but useful for the description/ASO)
 D&D, Dungeons and Dragons, 5e, DM tools, tabletop RPG, dungeon master, TTRPG, combat tracker, SRD
 
-## 6. Privacy policy draft
+## 6. Privacy policy — live
 
-Host this text (or a refined version of it) at a public URL and link it from Play Console.
+Hosted at https://joshcookwv.github.io/dm-assistant-mobile-support/ ([source](https://github.com/joshcookwv/dm-assistant-mobile-support)) — paste that URL into Play Console. The text below is what's actually live there; edit the repo directly if it ever needs updating, this copy is just for reference.
 
 > **Privacy Policy — DM Assistant**
 >
@@ -111,7 +111,7 @@ Host this text (or a refined version of it) at a public URL and link it from Pla
 >
 > **Data deletion.** Since nothing is stored outside your device, uninstalling the app removes all app data. There is no account to delete.
 >
-> **Contact.** [add a contact email or GitHub issues link here before publishing]
+> **Contact.** Use the [issue tracker](https://github.com/joshcookwv/dm-assistant-mobile-support/issues/new) for any privacy questions.
 
 ## 7. SRD content licensing (researched 2026-08-06)
 
@@ -164,8 +164,8 @@ Two concrete obligations, both currently unmet:
 
 3. **Product Identity (OGL §7):** don't use publisher-trademarked proper nouns (setting names, unique NPCs, etc.) outside of Open Game Content — not a concern here since the app only surfaces what Open5e itself already vetted as OGC; nothing new is being introduced.
 
-### What this means practically — not yet built
+### What this means practically — built
 
-A **Legal / Licenses screen** (e.g. off Settings, or a footer link) containing: the CC-BY attribution sentences, the OGL 1.0a full license text, and the Section 15 block above. This is genuinely small (a few screens of static text, no new data model), but it's a new UI surface, so — per standing instruction — **not built without asking first.** Worth doing before a real store submission; low urgency for the current on-device test pass since this only matters once the app is actually distributed to other people via a store listing.
+A **Legal &amp; Licenses screen** (`src/app/settings/legal.tsx`, button at the bottom of Settings) containing exactly the three pieces above: the CC-BY attribution sentences, the OGL 1.0a full license text, and the Section 15 block. Settings was restructured into its own mini-stack (`src/app/settings/_layout.tsx`) so this screen gets normal back navigation, matching how Rules/Monsters/Session are already built.
 
 Sources: [OGL 1.0a full text](https://www.d20srd.org/ogl.htm) · [CC BY 4.0 legal code](https://creativecommons.org/licenses/by/4.0/) · [Wizards' SRD 5.2 CC release](https://www.dndbeyond.com/srd) · [Open5e](https://open5e.com/) · [Open5e API repo](https://github.com/open5e/open5e-api)

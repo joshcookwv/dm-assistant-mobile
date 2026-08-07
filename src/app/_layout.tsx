@@ -104,7 +104,7 @@ export default function RootLayout() {
         />
         <Drawer.Screen
           name="settings"
-          options={{ title: "Settings", drawerLabel: "Settings", drawerIcon: drawerIcon("settings") }}
+          options={{ title: "Settings", drawerLabel: "Settings", drawerIcon: drawerIcon("settings"), headerShown: false }}
         />
         </Drawer>
       </SafeAreaView>
