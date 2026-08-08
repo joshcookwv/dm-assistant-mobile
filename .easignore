@@ -1,0 +1,5 @@
+# Not needed to build the app -- these are git-tracked deliverables/docs,
+# never imported by app code, but were bloating every EAS upload archive.
+builds/
+docs/screenshots/
+docs/store-assets/
