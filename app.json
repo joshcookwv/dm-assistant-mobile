@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "DM Assistant",
+    "name": "Infernal Codex",
     "slug": "dm-assistant-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -51,7 +51,8 @@
       "expo-font",
       "expo-image",
       "expo-status-bar",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,4 +1,4 @@
-# DM Assistant UI Refresh
+# Infernal Codex UI Refresh
 
 ## Direction
 

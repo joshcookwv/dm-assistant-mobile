@@ -64,7 +64,7 @@ Nine more captures not shown above (`API-Settings`, `Encounter-1`, `Map-Import`,
 Everything below is a first draft for you to edit, not final copy.
 
 ### App name
-DM Assistant
+Infernal Codex
 
 ### Short description (≤80 chars)
 > Offline D&D 5e rules, NPCs, encounters, and AI prep tools — no PC needed.
@@ -75,7 +75,7 @@ DM Assistant
 
 > **A private, standalone toolkit for running D&D 5e — entirely on your phone.**
 >
-> DM Assistant puts your campaign prep in one place instead of ten browser tabs: a full offline SRD rules reference, a combat tracker that keeps up with the table, and optional AI assistance that only runs when you ask it to.
+> Infernal Codex puts your campaign prep in one place instead of ten browser tabs: a full offline SRD rules reference, a combat tracker that keeps up with the table, and optional AI assistance that only runs when you ask it to.
 >
 > Everything lives on your device. There's no account, no cloud sync, and no telemetry — your campaign never leaves your phone unless you choose to use an AI feature, which requires your own Claude API key.
 >
@@ -101,9 +101,9 @@ D&D, Dungeons and Dragons, 5e, DM tools, tabletop RPG, dungeon master, TTRPG, co
 
 Hosted at https://joshcookwv.github.io/dm-assistant-mobile-support/ ([source](https://github.com/joshcookwv/dm-assistant-mobile-support)) — paste that URL into Play Console. The text below is what's actually live there; edit the repo directly if it ever needs updating, this copy is just for reference.
 
-> **Privacy Policy — DM Assistant**
+> **Privacy Policy — Infernal Codex**
 >
-> DM Assistant does not collect, store, or transmit any personal data to its developer. All campaign data — NPCs, notes, encounters, maps, sessions, and your homebrew monsters — is stored locally on your device and never leaves it.
+> Infernal Codex does not collect, store, or transmit any personal data to its developer. All campaign data — NPCs, notes, encounters, maps, sessions, and your homebrew monsters — is stored locally on your device and never leaves it.
 >
 > **AI features (optional).** If you choose to add a Claude API key in Settings and use an AI-assisted feature (NPC suggestions or PDF import), the relevant content (e.g. an NPC's name/race/role, or a PDF's contents) is sent directly from your device to Anthropic's API (anthropic.com) to generate a response. Your API key is stored only in your device's secure keychain. See Anthropic's own privacy policy for how they handle that data: https://www.anthropic.com/legal/privacy
 >

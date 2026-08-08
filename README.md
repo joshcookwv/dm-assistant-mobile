@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🎲 DM Assistant — Mobile
+# 🎲 Infernal Codex — Mobile
 
 **A standalone Android/iOS app for running D&D 5e games — rules, NPCs, notes, encounters, maps, and AI-assisted prep, entirely on your phone.**
 
@@ -12,7 +12,7 @@
 
 ---
 
-A native mobile port of the DM Assistant desktop/web app — same idea, but no PC required. Everything runs on-device: local SQLite storage, a bundled offline SRD ruleset, and AI features that call Claude directly from your phone with your own API key. No server, no account, no cloud sync.
+**Infernal Codex** is a native mobile port of the DM Assistant desktop/web app (a separate sibling project, same original name) — same idea, but no PC required. Everything runs on-device: local SQLite storage, a bundled offline SRD ruleset, and AI features that call Claude directly from your phone with your own API key. No server, no account, no cloud sync.
 
 ## Screenshots
 

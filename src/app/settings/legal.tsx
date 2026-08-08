@@ -111,7 +111,7 @@ export default function LegalScreen() {
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-3 p-4 pb-8">
       <Text className="text-sm leading-relaxed text-muted">
-        DM Assistant's Rules and Monsters content is sourced from the D&amp;D 5e System Reference
+        Infernal Codex's Rules and Monsters content is sourced from the D&amp;D 5e System Reference
         Documents and third-party sourcebooks via the{" "}
         <Text className="text-accent underline" onPress={() => Linking.openURL("https://open5e.com/")}>
           Open5e
@@ -124,7 +124,7 @@ export default function LegalScreen() {
       ))}
 
       <Text className="mt-2 text-center text-xs text-muted">
-        DM Assistant is an independent project and is not affiliated with, endorsed by, or sponsored
+        Infernal Codex is an independent project and is not affiliated with, endorsed by, or sponsored
         by Wizards of the Coast.
       </Text>
     </ScrollView>

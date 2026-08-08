@@ -1,5 +1,5 @@
 @echo off
-title DM Assistant Mobile (Expo)
+title Infernal Codex Mobile (Expo)
 cd /d "%~dp0"
 
 if not exist node_modules (
@@ -15,7 +15,7 @@ if not exist node_modules (
 
 echo.
 echo Starting the Expo dev server...
-echo Scan the QR code below with the Expo Go app on your phone.
+echo This app needs a dev-client build installed on your phone -- Expo Go will not work.
 echo Keep this window open while testing. Close it to stop the server.
 echo.
 

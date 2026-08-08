@@ -27,7 +27,7 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
             />
           </View>
           <View className="flex-1">
-            <Text className="text-lg font-bold text-foreground">DM Assistant</Text>
+            <Text className="text-lg font-bold text-foreground">Infernal Codex</Text>
             <Text className="mt-0.5 text-xs text-muted">Your table, organized</Text>
           </View>
         </View>
@@ -105,6 +105,10 @@ export default function RootLayout() {
         <Drawer.Screen
           name="settings"
           options={{ title: "Settings", drawerLabel: "Settings", drawerIcon: drawerIcon("settings"), headerShown: false }}
+        />
+        <Drawer.Screen
+          name="onboarding"
+          options={{ headerShown: false, swipeEnabled: false, drawerItemStyle: { height: 0 } }}
         />
         </Drawer>
       </SafeAreaView>

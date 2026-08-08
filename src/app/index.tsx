@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { Image, Pressable, ScrollView, Text, View } from "react-native";
 
@@ -8,6 +8,7 @@ import { listBestiary } from "@/lib/bestiary";
 import { listEncounters } from "@/lib/encounters";
 import { listNotes, type Note } from "@/lib/notes";
 import { listNpcs } from "@/lib/npcs";
+import { getSetting } from "@/lib/settings";
 import { listSessions } from "@/lib/session";
 
 function formatDate(iso: string): string {
@@ -50,6 +51,12 @@ export default function DashboardScreen() {
   }, []);
 
   useFocusEffect(refresh);
+
+  useEffect(() => {
+    if (!getSetting("onboarding_completed")) {
+      router.push("/onboarding");
+    }
+  }, []);
 
   const statTiles = [
     { label: "NPCs", value: counts.npcs, href: "/npcs", icon: "npcs" },
