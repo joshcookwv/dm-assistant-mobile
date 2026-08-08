@@ -233,7 +233,7 @@ export default function SettingsScreen() {
         </Text>
         <Text className="mt-2 text-sm text-foreground/80">
           Export everything — NPCs, notes, encounters, maps, sessions, and homebrew monsters — to a
-          single file you can save anywhere. Restoring it (e.g. on a new phone) replaces whatever's
+          single file you can save anywhere. Restoring it (e.g. on a new phone) replaces whatever&apos;s
           currently in the app.
         </Text>
 
@@ -275,7 +275,7 @@ export default function SettingsScreen() {
           className="rounded-md border border-panel-border bg-panel px-4 py-3 active:bg-white/5"
         >
           <Text className="text-sm font-medium text-foreground">Replay Walkthrough</Text>
-          <Text className="mt-0.5 text-xs text-muted">A quick tour of what's where</Text>
+          <Text className="mt-0.5 text-xs text-muted">A quick tour of what&apos;s where</Text>
         </Pressable>
         <Pressable
           onPress={() => router.push("/settings/legal")}

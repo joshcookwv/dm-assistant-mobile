@@ -5,6 +5,8 @@ export interface Note {
   title: string;
   content: string;
   tags: string;
+  campaign_id: number | null;
+  location_id: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -13,6 +15,8 @@ export interface NoteInput {
   title: string;
   content?: string;
   tags?: string;
+  campaignId?: number | null;
+  locationId?: number | null;
 }
 
 function buildFtsQuery(raw: string): string {
@@ -44,6 +48,12 @@ export function listNotes(query?: string): Note[] {
     .all(match) as Note[];
 }
 
+export function listNotesByLocation(locationId: number): Note[] {
+  return getDb()
+    .prepare("SELECT * FROM notes WHERE location_id = ? ORDER BY updated_at DESC")
+    .all(locationId) as Note[];
+}
+
 export function getNote(id: number): Note | undefined {
   return getDb().prepare("SELECT * FROM notes WHERE id = ?").get(id) as Note | undefined;
 }
@@ -51,16 +61,16 @@ export function getNote(id: number): Note | undefined {
 export function createNote(input: NoteInput): Note {
   const db = getDb();
   const result = db
-    .prepare(`INSERT INTO notes (title, content, tags) VALUES (?, ?, ?)`)
-    .run(input.title, input.content ?? "", input.tags ?? "");
+    .prepare(`INSERT INTO notes (title, content, tags, campaign_id, location_id) VALUES (?, ?, ?, ?, ?)`)
+    .run(input.title, input.content ?? "", input.tags ?? "", input.campaignId ?? null, input.locationId ?? null);
   return getNote(result.lastInsertRowid as number)!;
 }
 
 export function updateNote(id: number, input: NoteInput): Note | undefined {
   const db = getDb();
   db.prepare(
-    `UPDATE notes SET title = ?, content = ?, tags = ?, updated_at = datetime('now') WHERE id = ?`
-  ).run(input.title, input.content ?? "", input.tags ?? "", id);
+    `UPDATE notes SET title = ?, content = ?, tags = ?, campaign_id = ?, location_id = ?, updated_at = datetime('now') WHERE id = ?`
+  ).run(input.title, input.content ?? "", input.tags ?? "", input.campaignId ?? null, input.locationId ?? null, id);
   return getNote(id);
 }
 

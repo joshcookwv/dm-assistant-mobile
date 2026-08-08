@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { router, useLocalSearchParams, useNavigation } from "expo-router";
 import * as Crypto from "expo-crypto";
 
@@ -9,11 +9,10 @@ import { DeleteButton, DeleteConfirmBar } from "@/components/delete-confirm-bar"
 import { FormField } from "@/components/form-field";
 import { MonsterPickerModal } from "@/components/monster-picker-modal";
 import { PrimaryButton } from "@/components/primary-button";
-import { SessionPickerModal } from "@/components/session-picker-modal";
 import { Colors } from "@/constants/colors";
+import { getCampaign, getCampaignLocation, listCampaignPcs, type CampaignPc } from "@/lib/campaigns";
 import { deleteEncounter, getEncounter, updateEncounter, type Combatant, type Encounter } from "@/lib/encounters";
 import type { MonsterListItem } from "@/lib/monsters";
-import { listSessionMembers, listSessions, membersToCombatants, type SessionSummary } from "@/lib/session";
 
 function resortAndTrackActive(combatants: Combatant[], activeIndex: number): { combatants: Combatant[]; activeIndex: number } {
   const activeCombatant = combatants[activeIndex];
@@ -37,7 +36,9 @@ export default function EncounterDetailScreen() {
   const [newIsPc, setNewIsPc] = useState(false);
   const [customAddOpen, setCustomAddOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [sessionOptions, setSessionOptions] = useState<SessionSummary[] | null>(null);
+  const [pcPickerOpen, setPcPickerOpen] = useState(false);
+  const [campaignPcs, setCampaignPcs] = useState<CampaignPc[]>([]);
+  const [linkLabel, setLinkLabel] = useState<string | null>(null);
 
   useEffect(() => {
     const found = getEncounter(Number(id));
@@ -48,6 +49,12 @@ export default function EncounterDetailScreen() {
     }
     setEncounter(found);
     navigation.setOptions({ title: found.name });
+    if (found.campaign_id) {
+      setCampaignPcs(listCampaignPcs(found.campaign_id));
+      const campaign = getCampaign(found.campaign_id);
+      const location = found.location_id ? getCampaignLocation(found.location_id) : undefined;
+      setLinkLabel([campaign?.name, location?.name].filter(Boolean).join(" — "));
+    }
   }, [id, navigation]);
 
   useEffect(() => {
@@ -117,26 +124,17 @@ export default function EncounterDetailScreen() {
     });
   }
 
-  function addSessionRoster(sessionId: number) {
-    const staged = membersToCombatants(listSessionMembers(sessionId));
-    if (staged.length === 0) return;
-    mutate((current) => {
-      const { combatants, activeIndex } = resortAndTrackActive([...current.combatants, ...staged], current.active_index);
-      return { ...current, combatants, active_index: activeIndex };
+  function handleAddPc(pc: CampaignPc) {
+    addCombatant({
+      id: Crypto.randomUUID(),
+      name: pc.name,
+      initiative: 0,
+      maxHp: pc.maxHp,
+      currentHp: pc.maxHp,
+      ac: pc.ac,
+      conditions: "",
+      isPc: true,
     });
-  }
-
-  function handleAddFromSession() {
-    const staged = listSessions().filter((session) => session.combatantCount > 0);
-    if (staged.length === 0) {
-      Alert.alert("Nothing staged", "Add PCs or monsters to a session first.");
-      return;
-    }
-    if (staged.length === 1) {
-      addSessionRoster(staged[0].id);
-      return;
-    }
-    setSessionOptions(staged);
   }
 
   function updateCombatant(combatantId: string, patch: Partial<Combatant>) {
@@ -207,6 +205,12 @@ export default function EncounterDetailScreen() {
             </View>
             <Text className="mt-3 text-[10px] font-bold uppercase tracking-wider text-muted">Encounter name</Text>
             <TextInput value={encounter.name} onChangeText={handleRename} className="mt-1 py-0 text-xl font-black text-foreground" />
+            {linkLabel ? (
+              <View className="mt-2 flex-row items-center gap-1.5 self-start rounded-full bg-accent-soft px-2.5 py-1">
+                <AppIcon name="maps" size={11} color={Colors.accentBright} />
+                <Text className="text-[10px] font-bold text-accent-bright">{linkLabel}</Text>
+              </View>
+            ) : null}
           </View>
 
           <View className="p-4">
@@ -266,7 +270,7 @@ export default function EncounterDetailScreen() {
                 <AppIcon name="encounters" size={27} color={Colors.accentBright} />
               </View>
               <Text className="mt-4 text-base font-bold text-foreground">Build the initiative order</Text>
-              <Text className="mt-1 max-w-72 text-center text-sm leading-5 text-muted">Add a monster, import a prepared session roster, or create a custom combatant.</Text>
+              <Text className="mt-1 max-w-72 text-center text-sm leading-5 text-muted">Add a monster, a PC from your campaign roster, or create a custom combatant.</Text>
             </View>
           ) : null}
           {encounter.combatants.map((combatant, index) => (
@@ -297,11 +301,13 @@ export default function EncounterDetailScreen() {
               <Text className="text-center text-sm font-bold text-foreground">Monster</Text>
               <Text className="text-center text-[10px] text-muted">Search bestiary</Text>
             </Pressable>
-            <Pressable onPress={handleAddFromSession} className="min-h-24 flex-1 items-center justify-center gap-2 rounded-2xl border border-panel-border bg-panel-raised p-3 active:bg-white/5">
-              <AppIcon name="session" size={23} color={Colors.accentBright} />
-              <Text className="text-center text-sm font-bold text-foreground">Session</Text>
-              <Text className="text-center text-[10px] text-muted">Import roster</Text>
-            </Pressable>
+            {encounter.campaign_id ? (
+              <Pressable onPress={() => setPcPickerOpen(true)} className="min-h-24 flex-1 items-center justify-center gap-2 rounded-2xl border border-panel-border bg-panel-raised p-3 active:bg-white/5">
+                <AppIcon name="npcs" size={23} color={Colors.accentBright} />
+                <Text className="text-center text-sm font-bold text-foreground">PC</Text>
+                <Text className="text-center text-[10px] text-muted">From roster</Text>
+              </Pressable>
+            ) : null}
           </View>
 
           <Pressable
@@ -351,15 +357,38 @@ export default function EncounterDetailScreen() {
       </ScrollView>
 
       <MonsterPickerModal visible={pickerOpen} onClose={() => setPickerOpen(false)} onSelect={handleAddMonster} />
-      <SessionPickerModal
-        visible={sessionOptions !== null}
-        sessions={sessionOptions ?? []}
-        onClose={() => setSessionOptions(null)}
-        onSelect={(session) => {
-          addSessionRoster(session.id);
-          setSessionOptions(null);
-        }}
-      />
+
+      <Modal visible={pcPickerOpen} animationType="slide" onRequestClose={() => setPcPickerOpen(false)}>
+        <View className="flex-1 bg-background p-4 pt-14">
+          <View className="mb-4 flex-row items-center justify-between">
+            <Text className="text-lg font-black text-foreground">Add PC</Text>
+            <Pressable onPress={() => setPcPickerOpen(false)} className="min-h-10 items-center justify-center rounded-xl bg-accent px-4 active:bg-accent-bright">
+              <Text className="text-sm font-black text-accent-foreground">Done</Text>
+            </Pressable>
+          </View>
+          {campaignPcs.length === 0 ? (
+            <Text className="text-sm text-muted">This campaign has no PCs yet — add them from the campaign screen.</Text>
+          ) : (
+            <View className="gap-2">
+              {campaignPcs.map((pc) => (
+                <Pressable
+                  key={pc.id}
+                  onPress={() => handleAddPc(pc)}
+                  className="flex-row items-center justify-between rounded-2xl border border-panel-border bg-panel p-3.5 active:bg-white/5"
+                >
+                  <View className="flex-1">
+                    <Text className="text-sm font-bold text-sky-300">{pc.name}</Text>
+                    {!!pc.classLevel && <Text className="mt-0.5 text-xs text-muted">{pc.classLevel}</Text>}
+                  </View>
+                  <View className="h-9 w-9 items-center justify-center rounded-xl bg-accent">
+                    <AppIcon name="add" size={18} color={Colors.accentForeground} />
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }

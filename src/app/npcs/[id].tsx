@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from "react-native";
-import { router, useLocalSearchParams, useNavigation } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 
 import { AppIcon } from "@/components/app-icon";
 import { DeleteButton, DeleteConfirmBar } from "@/components/delete-confirm-bar";
@@ -10,8 +10,107 @@ import { PrimaryButton } from "@/components/primary-button";
 import { SaveToast } from "@/components/save-toast";
 import { Colors } from "@/constants/colors";
 import { AiNotConfiguredError } from "@/lib/ai";
+import {
+  createNpcAppearance,
+  deleteNpcAppearance,
+  listAppearancesByNpc,
+  listCampaignLocations,
+  listCampaigns,
+  type CampaignSummary,
+  type LocationSummary,
+  type NpcAppearanceDetail,
+} from "@/lib/campaigns";
 import { suggestNpcDescription, suggestNpcName } from "@/lib/npc-ai";
 import { createNpc, deleteNpc, getNpc, updateNpc, type NpcInput } from "@/lib/npcs";
+
+function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className={`rounded-full border px-3 py-1.5 ${selected ? "border-accent bg-accent" : "border-panel-border bg-panel-raised"}`}
+    >
+      <Text className={`text-xs font-semibold ${selected ? "text-accent-foreground" : "text-foreground"}`}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function AppearanceLogger({ npcId, onLogged }: { npcId: number; onLogged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
+  const [locations, setLocations] = useState<LocationSummary[]>([]);
+  const [campaignId, setCampaignId] = useState<number | null>(null);
+  const [locationId, setLocationId] = useState<number | null>(null);
+  const [notes, setNotes] = useState("");
+
+  function handleOpen() {
+    setCampaigns(listCampaigns());
+    setOpen(true);
+  }
+
+  function handlePickCampaign(id: number) {
+    setCampaignId(id);
+    setLocationId(null);
+    setLocations(listCampaignLocations(id));
+  }
+
+  function handleSubmit() {
+    if (!locationId) return;
+    createNpcAppearance({ npcId, locationId, notes: notes.trim() });
+    setOpen(false);
+    setCampaignId(null);
+    setLocationId(null);
+    setNotes("");
+    onLogged();
+  }
+
+  if (!open) {
+    return (
+      <Pressable onPress={handleOpen} hitSlop={8}>
+        <Text className="text-xs font-semibold text-accent-bright">+ Log Appearance</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View className="mt-3 gap-3 rounded-2xl border border-panel-border bg-panel p-3.5">
+      {campaigns.length === 0 ? (
+        <Text className="text-sm text-muted">Create a campaign first, then log this NPC at one of its locations.</Text>
+      ) : (
+        <>
+          <Text className="text-xs font-semibold uppercase tracking-wide text-muted">Campaign</Text>
+          <View className="flex-row flex-wrap gap-2">
+            {campaigns.map((campaign) => (
+              <Chip key={campaign.id} label={campaign.name} selected={campaignId === campaign.id} onPress={() => handlePickCampaign(campaign.id)} />
+            ))}
+          </View>
+          {campaignId && (
+            <>
+              <Text className="text-xs font-semibold uppercase tracking-wide text-muted">Location</Text>
+              {locations.length === 0 ? (
+                <Text className="text-sm text-muted">This campaign has no locations yet.</Text>
+              ) : (
+                <View className="flex-row flex-wrap gap-2">
+                  {locations.map((location) => (
+                    <Chip key={location.id} label={location.name} selected={locationId === location.id} onPress={() => setLocationId(location.id)} />
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+          {locationId && (
+            <>
+              <FormField label="Notes" value={notes} onChangeText={setNotes} placeholder="What happened here..." multiline className="min-h-20" />
+              <PrimaryButton label="Log Appearance" icon="check" onPress={handleSubmit} />
+            </>
+          )}
+        </>
+      )}
+      <Pressable onPress={() => setOpen(false)}>
+        <Text className="text-center text-xs text-muted">Cancel</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 const BLANK_FORM: NpcInput = { name: "", race: "", role: "", location: "", tags: "", description: "" };
 
@@ -60,6 +159,13 @@ export default function NpcDetailScreen() {
   const [nameAiError, setNameAiError] = useState<string | null>(null);
   const [descAiLoading, setDescAiLoading] = useState(false);
   const [descAiError, setDescAiError] = useState<string | null>(null);
+  const [appearances, setAppearances] = useState<NpcAppearanceDetail[]>([]);
+
+  const refreshAppearances = useCallback(() => {
+    if (!isNew) setAppearances(listAppearancesByNpc(Number(id)));
+  }, [id, isNew]);
+
+  useFocusEffect(refreshAppearances);
 
   useEffect(() => {
     if (isNew) {
@@ -186,6 +292,41 @@ export default function NpcDetailScreen() {
             {descAiError && <AiError message={descAiError} />}
           </View>
         </FormSection>
+
+        {!isNew && (
+          <FormSection title="Appearances" description="Every place and session this NPC has shown up." icon="maps">
+            {appearances.length === 0 ? (
+              <Text className="text-sm leading-5 text-muted">Not logged anywhere yet.</Text>
+            ) : (
+              <View className="gap-2">
+                {appearances.map((appearance) => (
+                  <View key={appearance.id} className="flex-row items-start gap-3 rounded-2xl border border-panel-border bg-panel-raised p-3">
+                    <View className="flex-1">
+                      <Pressable onPress={() => router.push(`/campaign/${appearance.campaignId}/location/${appearance.locationId}`)}>
+                        <Text className="text-sm font-bold text-accent-bright">{appearance.locationName}</Text>
+                      </Pressable>
+                      <Text className="mt-0.5 text-xs text-muted">
+                        {appearance.campaignName}
+                        {appearance.sessionNumber ? ` · Session ${appearance.sessionNumber}` : ""}
+                      </Text>
+                      {!!appearance.notes && <Text className="mt-1 text-xs leading-4 text-foreground/80">{appearance.notes}</Text>}
+                    </View>
+                    <Pressable
+                      onPress={() => {
+                        deleteNpcAppearance(appearance.id);
+                        refreshAppearances();
+                      }}
+                      hitSlop={8}
+                    >
+                      <AppIcon name="trash" size={15} color={Colors.muted} />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+            <AppearanceLogger npcId={Number(id)} onLogged={refreshAppearances} />
+          </FormSection>
+        )}
 
         <View className="gap-3 pt-1">
           <PrimaryButton label={saving ? "Saving..." : isNew ? "Create NPC" : "Save changes"} icon="check" onPress={handleSave} disabled={saving || !form.name.trim()} />

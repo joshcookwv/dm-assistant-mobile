@@ -107,6 +107,67 @@ function initSchema(db: SQLite.SQLiteDatabase) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    -- Campaign hub: a Campaign owns a persistent PC roster and a set of
+    -- Locations. NPCs stay in the global npcs table (not campaign-scoped)
+    -- so the same NPC can recur across locations/sessions or even campaigns --
+    -- their tie to a place and a game night is recorded in npc_appearances,
+    -- not a column on npcs itself.
+    CREATE TABLE IF NOT EXISTS campaigns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS campaign_pcs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      campaign_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      class_level TEXT NOT NULL DEFAULT '',
+      max_hp INTEGER NOT NULL DEFAULT 0,
+      ac INTEGER,
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- map_id is an optional soft link to maps -- a Location can reuse an
+    -- uploaded map image without Maps and Locations becoming the same thing.
+    CREATE TABLE IF NOT EXISTS campaign_locations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      campaign_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      map_id INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS campaign_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      campaign_id INTEGER NOT NULL,
+      number INTEGER NOT NULL,
+      name TEXT NOT NULL DEFAULT '',
+      played_on TEXT,
+      recap TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- The actual "where has this NPC shown up" mechanism: one row per
+    -- npc x location x session appearance, each with its own note. Many-to-
+    -- many by design -- an NPC can appear at several locations over the
+    -- course of a campaign, not just one.
+    CREATE TABLE IF NOT EXISTS npc_appearances (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      npc_id INTEGER NOT NULL,
+      location_id INTEGER NOT NULL,
+      session_id INTEGER,
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 }
 
@@ -132,12 +193,62 @@ function migrateSessionMembers(db: SQLite.SQLiteDatabase) {
   }
 }
 
+function addColumnIfMissing(db: SQLite.SQLiteDatabase, table: string, column: string, ddl: string) {
+  const columns = db.getAllSync<{ name: string }>(`PRAGMA table_info(${table})`);
+  if (columns.some((c) => c.name === column)) return;
+  db.execSync(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+}
+
+/**
+ * Retires the old flat Session prep (multiple named rosters staged ahead of
+ * an encounter) in favor of Campaign -> Location. Encounters/notes gain
+ * optional links to a campaign/location/session; existing `sessions` rows
+ * become that campaign's numbered sessions so nothing is lost, but
+ * `session_members` is deliberately left untouched rather than merged into
+ * the new persistent `campaign_pcs` roster -- this is early/test data and a
+ * silent auto-merge risks duplicate PCs for little benefit. The user
+ * repopulates the roster once, going forward.
+ */
+function migrateToCampaigns(db: SQLite.SQLiteDatabase) {
+  addColumnIfMissing(db, "encounters", "campaign_id", "campaign_id INTEGER");
+  addColumnIfMissing(db, "encounters", "location_id", "location_id INTEGER");
+  addColumnIfMissing(db, "encounters", "session_id", "session_id INTEGER");
+  addColumnIfMissing(db, "notes", "campaign_id", "campaign_id INTEGER");
+  addColumnIfMissing(db, "notes", "location_id", "location_id INTEGER");
+
+  const alreadyMigrated = db.getFirstSync<{ value: string }>(
+    "SELECT value FROM settings WHERE key = 'campaign_migration_done'"
+  );
+  if (alreadyMigrated) return;
+
+  const oldSessions = db.getAllSync<{ id: number; name: string; notes: string }>(
+    "SELECT id, name, notes FROM sessions ORDER BY id"
+  );
+  if (oldSessions.length > 0) {
+    const campaign = db.runSync("INSERT INTO campaigns (name) VALUES (?)", "My Campaign");
+    oldSessions.forEach((session, index) => {
+      db.runSync(
+        "INSERT INTO campaign_sessions (campaign_id, number, name, recap) VALUES (?, ?, ?, ?)",
+        campaign.lastInsertRowId,
+        index + 1,
+        session.name,
+        session.notes
+      );
+    });
+  }
+
+  db.runSync(
+    "INSERT INTO settings (key, value) VALUES ('campaign_migration_done', '1') ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+  );
+}
+
 function createConnection(): SQLite.SQLiteDatabase {
   const db = SQLite.openDatabaseSync("app.db");
   db.execSync("PRAGMA journal_mode = WAL;");
   db.execSync("PRAGMA foreign_keys = ON;");
   initSchema(db);
   migrateSessionMembers(db);
+  migrateToCampaigns(db);
   return db;
 }
 

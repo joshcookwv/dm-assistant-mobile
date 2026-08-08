@@ -4,13 +4,13 @@ import { router, useFocusEffect } from "expo-router";
 
 import { EntityListEmpty, EntityListItem } from "@/components/entity-list-item";
 import { PrimaryButton } from "@/components/primary-button";
-import { createEncounter, listEncounters, type Encounter } from "@/lib/encounters";
+import { createEncounter, listOneShotEncounters, type Encounter } from "@/lib/encounters";
 
 export default function EncountersListScreen() {
   const [encounters, setEncounters] = useState<Encounter[]>([]);
 
   const refresh = useCallback(() => {
-    setEncounters(listEncounters());
+    setEncounters(listOneShotEncounters());
   }, []);
 
   useFocusEffect(refresh);

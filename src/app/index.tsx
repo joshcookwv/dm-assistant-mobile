@@ -5,11 +5,11 @@ import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import { Colors } from "@/constants/colors";
 import { listBestiary } from "@/lib/bestiary";
-import { listEncounters } from "@/lib/encounters";
+import { listCampaigns } from "@/lib/campaigns";
+import { listOneShotEncounters } from "@/lib/encounters";
 import { listNotes, type Note } from "@/lib/notes";
 import { listNpcs } from "@/lib/npcs";
 import { getSetting } from "@/lib/settings";
-import { listSessions } from "@/lib/session";
 
 function formatDate(iso: string): string {
   return new Date(iso + "Z").toLocaleString(undefined, {
@@ -26,8 +26,8 @@ const QUICK_LINKS = [
   { href: "/monsters", label: "Monsters", detail: "SRD + homebrew", icon: "monsters" },
   { href: "/npcs", label: "NPC Roster", detail: "People & places", icon: "npcs" },
   { href: "/notes", label: "Campaign Notes", detail: "Ideas & lore", icon: "notes" },
-  { href: "/session", label: "Session Prep", detail: "Stage game night", icon: "session" },
-  { href: "/encounters", label: "Encounters", detail: "Run initiative", icon: "encounters" },
+  { href: "/campaign", label: "Campaigns", detail: "Party, locations & sessions", icon: "session" },
+  { href: "/encounters", label: "One-Shot Encounters", detail: "Run initiative", icon: "encounters" },
   { href: "/maps", label: "Maps", detail: "Scenes & locations", icon: "maps" },
 ] as const satisfies readonly {
   href: string;
@@ -37,15 +37,15 @@ const QUICK_LINKS = [
 }[];
 
 export default function DashboardScreen() {
-  const [counts, setCounts] = useState({ npcs: 0, encounters: 0, homebrew: 0, sessions: 0 });
+  const [counts, setCounts] = useState({ npcs: 0, encounters: 0, homebrew: 0, campaigns: 0 });
   const [recentNotes, setRecentNotes] = useState<Note[]>([]);
 
   const refresh = useCallback(() => {
     setCounts({
       npcs: listNpcs().length,
-      encounters: listEncounters().length,
+      encounters: listOneShotEncounters().length,
       homebrew: listBestiary().length,
-      sessions: listSessions().length,
+      campaigns: listCampaigns().length,
     });
     setRecentNotes(listNotes().slice(0, 5));
   }, []);
@@ -61,7 +61,7 @@ export default function DashboardScreen() {
   const statTiles = [
     { label: "NPCs", value: counts.npcs, href: "/npcs", icon: "npcs" },
     { label: "Encounters", value: counts.encounters, href: "/encounters", icon: "encounters" },
-    { label: "Sessions", value: counts.sessions, href: "/session", icon: "session" },
+    { label: "Campaigns", value: counts.campaigns, href: "/campaign", icon: "session" },
     { label: "Bestiary", value: counts.homebrew, href: "/monsters", icon: "monsters" },
   ] as const;
 

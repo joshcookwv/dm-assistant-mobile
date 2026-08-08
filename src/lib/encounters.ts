@@ -17,6 +17,9 @@ export interface Encounter {
   round: number;
   active_index: number;
   combatants: Combatant[];
+  campaign_id: number | null;
+  location_id: number | null;
+  session_id: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -27,8 +30,17 @@ interface EncounterRow {
   round: number;
   active_index: number;
   combatants: string;
+  campaign_id: number | null;
+  location_id: number | null;
+  session_id: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface EncounterLinks {
+  campaignId?: number;
+  locationId?: number;
+  sessionId?: number;
 }
 
 export interface EncounterUpdateInput {
@@ -52,6 +64,21 @@ export function listEncounters(): Encounter[] {
   return rows.map(rowToEncounter);
 }
 
+/** Unlinked encounters only — what the top-level "One-Shot Encounters" list shows. */
+export function listOneShotEncounters(): Encounter[] {
+  const rows = getDb()
+    .prepare("SELECT * FROM encounters WHERE location_id IS NULL ORDER BY updated_at DESC")
+    .all() as EncounterRow[];
+  return rows.map(rowToEncounter);
+}
+
+export function listEncountersByLocation(locationId: number): Encounter[] {
+  const rows = getDb()
+    .prepare("SELECT * FROM encounters WHERE location_id = ? ORDER BY updated_at DESC")
+    .all(locationId) as EncounterRow[];
+  return rows.map(rowToEncounter);
+}
+
 export function getEncounter(id: number): Encounter | undefined {
   const row = getDb().prepare("SELECT * FROM encounters WHERE id = ?").get(id) as
     | EncounterRow
@@ -59,13 +86,14 @@ export function getEncounter(id: number): Encounter | undefined {
   return row ? rowToEncounter(row) : undefined;
 }
 
-export function createEncounter(name: string): Encounter {
+export function createEncounter(name: string, links?: EncounterLinks): Encounter {
   const db = getDb();
   const result = db
     .prepare(
-      `INSERT INTO encounters (name, round, active_index, combatants) VALUES (?, 1, 0, '[]')`
+      `INSERT INTO encounters (name, round, active_index, combatants, campaign_id, location_id, session_id)
+       VALUES (?, 1, 0, '[]', ?, ?, ?)`
     )
-    .run(name);
+    .run(name, links?.campaignId ?? null, links?.locationId ?? null, links?.sessionId ?? null);
   return getEncounter(result.lastInsertRowid as number)!;
 }
 

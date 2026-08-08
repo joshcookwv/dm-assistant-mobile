@@ -87,12 +87,17 @@ export default function RootLayout() {
           options={{ title: "Notes", drawerLabel: "Notes", drawerIcon: drawerIcon("notes"), headerShown: false }}
         />
         <Drawer.Screen
-          name="session"
-          options={{ title: "Session", drawerLabel: "Session", drawerIcon: drawerIcon("session"), headerShown: false }}
+          name="campaign"
+          options={{ title: "Campaigns", drawerLabel: "Campaigns", drawerIcon: drawerIcon("session"), headerShown: false }}
         />
         <Drawer.Screen
           name="encounters"
-          options={{ title: "Encounters", drawerLabel: "Encounters", drawerIcon: drawerIcon("encounters"), headerShown: false }}
+          options={{
+            title: "One-Shot Encounters",
+            drawerLabel: "One-Shot Encounters",
+            drawerIcon: drawerIcon("encounters"),
+            headerShown: false,
+          }}
         />
         <Drawer.Screen
           name="maps"

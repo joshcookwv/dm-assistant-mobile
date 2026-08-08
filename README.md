@@ -16,18 +16,10 @@
 
 ## Screenshots
 
-<table>
-<tr>
-<td width="33%"><img src="docs/screenshots/Dashboard.jpg" alt="Dashboard" /><br/><sub>Dashboard — campaign command center, at-a-glance counts, recent notes</sub></td>
-<td width="33%"><img src="docs/screenshots/Monster-2.jpg" alt="Monster detail" /><br/><sub>Monsters — official SRD stat blocks with art, alongside your homebrew</sub></td>
-<td width="33%"><img src="docs/screenshots/Encounter-2.jpg" alt="Combat tracker" /><br/><sub>Encounters — live initiative, HP, and AC tracking, autosaving as you play</sub></td>
-</tr>
-<tr>
-<td width="33%"><img src="docs/screenshots/NPC-2.jpg" alt="NPC with AI-suggested description" /><br/><sub>NPCs — AI-assisted name/description suggestions</sub></td>
-<td width="33%"><img src="docs/screenshots/Session-2.jpg" alt="Prepared session roster" /><br/><sub>Session — stage PCs and monsters ahead of game night</sub></td>
-<td width="33%"><img src="docs/screenshots/Rules.jpg" alt="Rules browser" /><br/><sub>Rules — offline SRD categories, browsable with no connection</sub></td>
-</tr>
-</table>
+_Pending re-capture — the Session section was replaced by Campaigns/Locations, the app was
+renamed to Infernal Codex, and Encounters/Dashboard both changed. The existing captures in
+[`docs/screenshots/`](docs/screenshots/) are now out of date (`Session-1.jpg`/`Session-2.jpg`
+show a retired screen); new ones go here once taken from the current build._
 
 More captures (NPCs, Notes, Maps, PDF import, Settings) are in [`docs/screenshots/`](docs/screenshots/).
 
@@ -37,10 +29,11 @@ More captures (NPCs, Notes, Maps, PDF import, Settings) are in [`docs/screenshot
 - 🐉 **Monsters** — official SRD creatures and your own homebrew in one searchable list, filterable to All / Official / Homebrew, searchable by name or challenge rating.
 - 🎭 **NPCs** — name, race, role, location, tags, and freeform notes, with an on-device "Suggest with AI" for names and descriptions.
 - 📝 **Notes** — markdown campaign notes with full-text search (SQLite FTS5).
-- 🗓️ **Session** — stage PCs and monsters ahead of game night across any number of named sessions, then pull a whole roster into an encounter in one tap.
-- ⚔️ **Encounters** — build combat from a prepared session, official SRD monsters, your own homebrew, or one-off custom combatants. Live initiative order, HP, AC, and condition tracking, autosaving as you play.
-- 🗺️ **Maps** — attach map images from your photo library or save links to maps hosted elsewhere.
+- 🗺️ **Campaigns** — a persistent party roster plus a set of Locations per campaign; each Location shows every NPC who's shown up there, every encounter that's happened (or is planned) there, and every note tagged to it. Log an NPC's appearance at a location and session number, and their full history is searchable from their own page — the data model behind this is deliberately shaped for AI-assisted recap and search down the line.
+- ⚔️ **One-Shot Encounters** — a quick, unlinked combat tracker for anything not tied to a campaign: official SRD monsters, your own homebrew, or one-off custom combatants. Starting an encounter from inside a Location links it automatically instead. Live initiative order, HP, AC, and condition tracking, autosaving as you play.
+- 🗂️ **Maps** — attach map images from your photo library or save links to maps hosted elsewhere; a Location can optionally reuse one.
 - 📄 **PDF import** — pick a sourcebook or homebrew PDF and Claude reads it directly (native PDF support, no local text extraction step) to pull out NPCs, monster stat blocks, and standalone rules. Nothing saves automatically — review and approve on a staging screen first.
+- 💾 **Backup & restore** — export every table plus your map images to one file via the share sheet; restore it on a new phone in a couple taps.
 - ⚙️ **Settings** — bring your own Claude API key, stored in your device's secure keychain (`expo-secure-store`). Fully optional; everything except AI-assisted features and PDF import works with zero configuration.
 
 ## Installing

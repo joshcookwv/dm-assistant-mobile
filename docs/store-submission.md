@@ -30,7 +30,7 @@ Since there's no iOS build yet at all (see README), doing Android first gets som
 - [ ] **Target audience & content**: mark as not directed at children (13+ is the realistic floor given D&D content).
 - [x] **App icon** for the store listing: 512×512 PNG, 32-bit with alpha. Downscaled from the in-app icon — [`docs/store-assets/app-icon-512.png`](store-assets/app-icon-512.png).
 - [x] **Feature graphic**: 1024×500, shown at the top of the store listing. Recreated at full resolution from the dashboard hero banner's actual design (same colors/copy/logo treatment, not just a cropped screenshot) — [`docs/store-assets/feature-graphic.jpg`](store-assets/feature-graphic.jpg) (upload this one — Play rejects alpha on this slot) or [`.png`](store-assets/feature-graphic.png) (also alpha-free).
-- [x] **Screenshots**: minimum 2, Play Store recommends 4–8. Phone screenshots need to be actual device captures (not simulator chrome) at a minimum 320px, max 3840px on the longest side. Re-captured post-rebrand — see [`docs/screenshots/`](screenshots/) and the preview below. 15 real device captures at 1080×2340, well within Play's size requirements; a subset doubles as the README's showcase images.
+- [ ] **Screenshots**: minimum 2, Play Store recommends 4–8. Phone screenshots need to be actual device captures (not simulator chrome) at a minimum 320px, max 3840px on the longest side. Pending re-capture again — the Campaign/Location rework and Infernal Codex rename make the current set in [`docs/screenshots/`](screenshots/) stale (`Session-*.jpg` shows a retired screen).
 - [ ] **Short description**: max 80 characters.
 - [ ] **Full description**: max 4000 characters.
 
@@ -38,26 +38,15 @@ Since there's no iOS build yet at all (see README), doing Android first gets som
 
 - [ ] iOS build doesn't exist yet — out of scope for a Play Store submission, but blocks any App Store submission.
 - [x] `production`-profile build succeeded (outputs an `.aab`, the Play Store submission format — not directly installable) — see section 2 above. A `preview`-profile build (same stripped-down non-dev-client code, but an installable `.apk`) has been built for on-device testing after each major change, most recently post-rebrand/UI-refresh — see [`builds/dm-assistant-mobile-v1.0.0-preview.apk`](../builds/). Multi-day on-device pass on that standalone build: **complete.**
-- [x] Screenshots captured — see section 3 above.
+- [ ] Screenshots — see section 3 above; pending re-capture after the Campaign rework.
 - [x] **SRD content licensing — researched and fixed.** Full writeup in section 7 below. Verdict was: both OGL 1.0a and CC-BY-4.0 explicitly permit exactly this (compiling into a distributed app, commercial use included) — bundling vs. fetching-at-runtime makes no legal difference — but the app was missing the notice/attribution text both licenses make mandatory as the condition of that permission. **Fixed:** added a Legal &amp; Licenses screen (`src/app/settings/legal.tsx`, reached via a button at the bottom of Settings) containing the CC-BY attribution sentences, the full OGL 1.0a text, and the generated Section 15 notice.
 - [ ] Uninstall the orphaned `com.joshcook.dmassistant` dev-client build from your test device — it's a different package than the current `com.infernalbulldog.dmassistant`, so it's safe to remove, but has to be done on-device (long-press the icon → Uninstall).
 
 ## Screenshot preview
 
-<table>
-<tr>
-<td width="33%"><img src="screenshots/Dashboard.jpg" width="220" alt="Dashboard" /></td>
-<td width="33%"><img src="screenshots/Monster-2.jpg" width="220" alt="Monster detail" /></td>
-<td width="33%"><img src="screenshots/Encounter-2.jpg" width="220" alt="Combat tracker" /></td>
-</tr>
-<tr>
-<td width="33%"><img src="screenshots/NPC-2.jpg" width="220" alt="NPC with AI-suggested description" /></td>
-<td width="33%"><img src="screenshots/Session-2.jpg" width="220" alt="Prepared session roster" /></td>
-<td width="33%"><img src="screenshots/Rules.jpg" width="220" alt="Rules browser" /></td>
-</tr>
-</table>
-
-Nine more captures not shown above (`API-Settings`, `Encounter-1`, `Map-Import`, `Monster-1`, `NPC-1`, `NPC-3`, `Notes`, `PDF-Import`, `Session-1`) are available in the same folder if the listing wants more than 6.
+_Pending re-capture — Session was replaced by Campaigns/Locations, the app was renamed to
+Infernal Codex, and Encounters/Dashboard both changed. The existing captures (including
+`Session-1.jpg`/`Session-2.jpg`, which show a retired screen) no longer represent the app._
 
 ## 5. Draft listing copy
 
@@ -84,10 +73,11 @@ Infernal Codex
 > • Monsters — official SRD creatures and your own homebrew in one searchable list, filterable to Official or Homebrew, searchable by name or challenge rating.
 > • NPCs — track name, race, role, location, and notes, with optional AI-suggested names and descriptions.
 > • Notes — searchable markdown campaign notes.
-> • Session — stage PCs and monsters ahead of game night across any number of named sessions, then drop a full roster into an encounter in one tap.
-> • Encounters — a live combat tracker: initiative order, HP, AC, and conditions, built from a prepared session, official monsters, or your own homebrew.
+> • Campaigns — a persistent party roster plus locations; each location shows the NPCs who've shown up there, the encounters that happened there, and the notes tagged to it.
+> • One-Shot Encounters — a live combat tracker for quick, unlinked fights: initiative order, HP, AC, and conditions, built from official monsters, your own homebrew, or custom combatants.
 > • Maps — attach images from your photo library or link out to maps hosted elsewhere.
 > • PDF import — point it at a sourcebook or homebrew PDF and Claude reads it directly, pulling out NPCs, stat blocks, and rules text for you to review before anything saves.
+> • Backup & restore — export everything to one file via the share sheet; restore it on a new phone.
 >
 > Bring your own Claude API key (optional, from console.anthropic.com) to unlock the AI features. Everything else works with zero configuration.
 

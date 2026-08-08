@@ -2,15 +2,14 @@ import { Stack } from "expo-router";
 
 import { drawerToggleHeaderLeft, sectionStackScreenOptions } from "@/constants/stack-options";
 
-export default function SessionStackLayout() {
+export default function CampaignStackLayout() {
   return (
     <Stack screenOptions={sectionStackScreenOptions}>
       <Stack.Screen
         name="index"
-        options={{ title: "Sessions", headerLeft: drawerToggleHeaderLeft }}
+        options={{ title: "Campaigns", headerLeft: drawerToggleHeaderLeft }}
       />
-      <Stack.Screen name="[id]" options={{ title: "" }} />
-      <Stack.Screen name="member/[memberId]" options={{ title: "" }} />
+      <Stack.Screen name="[id]" options={{ headerShown: false }} />
     </Stack>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { router, useLocalSearchParams, useNavigation } from "expo-router";
 
 import { DeleteButton, DeleteConfirmBar } from "@/components/delete-confirm-bar";
@@ -7,22 +7,52 @@ import { FormField } from "@/components/form-field";
 import { FormSection } from "@/components/form-section";
 import { PrimaryButton } from "@/components/primary-button";
 import { SaveToast } from "@/components/save-toast";
+import {
+  getCampaignLocation,
+  listCampaignLocations,
+  listCampaigns,
+  type CampaignSummary,
+  type LocationSummary,
+} from "@/lib/campaigns";
 import { createNote, deleteNote, getNote, updateNote, type NoteInput } from "@/lib/notes";
 
-const BLANK_FORM: NoteInput = { title: "", content: "", tags: "" };
+const BLANK_FORM: NoteInput = { title: "", content: "", tags: "", campaignId: null, locationId: null };
+
+function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className={`rounded-full border px-3 py-1.5 ${selected ? "border-accent bg-accent" : "border-panel-border bg-panel-raised"}`}
+    >
+      <Text className={`text-xs font-semibold ${selected ? "text-accent-foreground" : "text-foreground"}`}>{label}</Text>
+    </Pressable>
+  );
+}
 
 export default function NoteDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, location: locationParam, campaign: campaignParam } = useLocalSearchParams<{
+    id: string;
+    location?: string;
+    campaign?: string;
+  }>();
   const isNew = id === "new";
   const navigation = useNavigation();
   const [form, setForm] = useState<NoteInput>(BLANK_FORM);
   const [saving, setSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
+  const [locationName, setLocationName] = useState<string | null>(null);
+  const [pickerCampaigns, setPickerCampaigns] = useState<CampaignSummary[]>([]);
+  const [pickerCampaignId, setPickerCampaignId] = useState<number | null>(null);
+  const [pickerLocations, setPickerLocations] = useState<LocationSummary[]>([]);
 
   useEffect(() => {
     if (isNew) {
-      setForm(BLANK_FORM);
+      const campaignId = campaignParam ? Number(campaignParam) : null;
+      const locationId = locationParam ? Number(locationParam) : null;
+      setForm({ ...BLANK_FORM, campaignId, locationId });
+      if (locationId) setLocationName(getCampaignLocation(locationId)?.name ?? null);
       navigation.setOptions({ title: "New Note" });
       return;
     }
@@ -32,9 +62,40 @@ export default function NoteDetailScreen() {
       router.back();
       return;
     }
-    setForm(note);
+    setForm({
+      title: note.title,
+      content: note.content,
+      tags: note.tags,
+      campaignId: note.campaign_id,
+      locationId: note.location_id,
+    });
+    if (note.location_id) setLocationName(getCampaignLocation(note.location_id)?.name ?? null);
     navigation.setOptions({ title: note.title });
-  }, [id, isNew, navigation]);
+  }, [id, isNew, navigation, locationParam, campaignParam]);
+
+  function openLocationPicker() {
+    setPickerCampaigns(listCampaigns());
+    setPickerCampaignId(form.campaignId ?? null);
+    setPickerLocations(form.campaignId ? listCampaignLocations(form.campaignId) : []);
+    setLocationPickerOpen(true);
+  }
+
+  function handlePickCampaign(campaignId: number) {
+    setPickerCampaignId(campaignId);
+    setPickerLocations(listCampaignLocations(campaignId));
+  }
+
+  function handlePickLocation(location: LocationSummary) {
+    setForm((previous) => ({ ...previous, campaignId: location.campaignId, locationId: location.id }));
+    setLocationName(location.name);
+    setLocationPickerOpen(false);
+  }
+
+  function handleClearLocation() {
+    setForm((previous) => ({ ...previous, campaignId: null, locationId: null }));
+    setLocationName(null);
+    setLocationPickerOpen(false);
+  }
 
   function handleSave() {
     if (!form.title.trim()) return;
@@ -75,6 +136,53 @@ export default function NoteDetailScreen() {
             multiline
             className="min-h-72 font-mono"
           />
+        </FormSection>
+
+        <FormSection title="Location" description="Optionally tag this note to a place in one of your campaigns." icon="maps">
+          <View className="flex-row items-center justify-between rounded-2xl border border-panel-border bg-panel-raised px-3.5 py-3">
+            <Text className="text-sm text-foreground">{locationName ?? "Unfiled"}</Text>
+            <Pressable onPress={openLocationPicker} hitSlop={8}>
+              <Text className="text-xs font-semibold text-accent-bright">{locationName ? "Change" : "Set Location"}</Text>
+            </Pressable>
+          </View>
+          {locationPickerOpen && (
+            <View className="gap-3 rounded-2xl border border-panel-border bg-panel p-3.5">
+              {pickerCampaigns.length === 0 ? (
+                <Text className="text-sm text-muted">No campaigns yet.</Text>
+              ) : (
+                <>
+                  <Text className="text-xs font-semibold uppercase tracking-wide text-muted">Campaign</Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    {pickerCampaigns.map((campaign) => (
+                      <Chip key={campaign.id} label={campaign.name} selected={pickerCampaignId === campaign.id} onPress={() => handlePickCampaign(campaign.id)} />
+                    ))}
+                  </View>
+                  {pickerCampaignId && (
+                    <>
+                      <Text className="text-xs font-semibold uppercase tracking-wide text-muted">Location</Text>
+                      {pickerLocations.length === 0 ? (
+                        <Text className="text-sm text-muted">This campaign has no locations yet.</Text>
+                      ) : (
+                        <View className="flex-row flex-wrap gap-2">
+                          {pickerLocations.map((location) => (
+                            <Chip key={location.id} label={location.name} selected={form.locationId === location.id} onPress={() => handlePickLocation(location)} />
+                          ))}
+                        </View>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+              <View className="flex-row justify-between">
+                <Pressable onPress={handleClearLocation}>
+                  <Text className="text-xs text-muted">Clear</Text>
+                </Pressable>
+                <Pressable onPress={() => setLocationPickerOpen(false)}>
+                  <Text className="text-xs text-accent-bright">Done</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
         </FormSection>
 
         <View className="gap-3 pt-1">

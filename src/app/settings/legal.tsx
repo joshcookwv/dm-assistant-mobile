@@ -111,7 +111,7 @@ export default function LegalScreen() {
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-3 p-4 pb-8">
       <Text className="text-sm leading-relaxed text-muted">
-        Infernal Codex's Rules and Monsters content is sourced from the D&amp;D 5e System Reference
+        Infernal Codex&apos;s Rules and Monsters content is sourced from the D&amp;D 5e System Reference
         Documents and third-party sourcebooks via the{" "}
         <Text className="text-accent underline" onPress={() => Linking.openURL("https://open5e.com/")}>
           Open5e

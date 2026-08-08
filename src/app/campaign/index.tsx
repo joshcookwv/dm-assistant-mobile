@@ -6,28 +6,28 @@ import { AppIcon } from "@/components/app-icon";
 import { EntityListEmpty, EntityListItem } from "@/components/entity-list-item";
 import { PrimaryButton } from "@/components/primary-button";
 import { Colors } from "@/constants/colors";
-import { createSession, listSessions, type SessionSummary } from "@/lib/session";
+import { createCampaign, listCampaigns, type CampaignSummary } from "@/lib/campaigns";
 
-function summaryLine(session: SessionSummary): string {
-  if (session.memberCount === 0) return "Nothing staged yet";
-  const monsters = session.combatantCount - session.pcCount;
+function summaryLine(campaign: CampaignSummary): string {
+  if (campaign.pcCount === 0 && campaign.locationCount === 0) return "Nothing set up yet";
   return [
-    session.pcCount > 0 && `${session.pcCount} PC${session.pcCount === 1 ? "" : "s"}`,
-    monsters > 0 && `${monsters} monster${monsters === 1 ? "" : "s"}`,
+    campaign.pcCount > 0 && `${campaign.pcCount} PC${campaign.pcCount === 1 ? "" : "s"}`,
+    campaign.locationCount > 0 && `${campaign.locationCount} location${campaign.locationCount === 1 ? "" : "s"}`,
+    campaign.sessionCount > 0 && `${campaign.sessionCount} session${campaign.sessionCount === 1 ? "" : "s"}`,
   ]
     .filter(Boolean)
     .join(" • ");
 }
 
-export default function SessionsListScreen() {
-  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+export default function CampaignsListScreen() {
+  const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
 
-  const refresh = useCallback(() => setSessions(listSessions()), []);
+  const refresh = useCallback(() => setCampaigns(listCampaigns()), []);
   useFocusEffect(refresh);
 
   function handleCreate() {
-    const created = createSession("New Session");
-    router.push(`/session/${created.id}`);
+    const created = createCampaign("New Campaign");
+    router.push(`/campaign/${created.id}`);
   }
 
   return (
@@ -38,23 +38,24 @@ export default function SessionsListScreen() {
             <AppIcon name="session" size={20} color={Colors.accentBright} />
           </View>
           <View className="flex-1">
-            <Text className="text-sm font-bold text-foreground">Prepare before game night</Text>
+            <Text className="text-sm font-bold text-foreground">Your campaign, organized</Text>
             <Text className="mt-1 text-xs leading-5 text-muted">
-              Stage the party and monsters, then send the full roster into an encounter in one tap.
+              Keep a persistent party roster and browse locations to see who's there, what's
+              happened, and what's been noted.
             </Text>
           </View>
         </View>
-        <PrimaryButton label="New Session" onPress={handleCreate} />
+        <PrimaryButton label="New Campaign" onPress={handleCreate} />
       </View>
 
       <FlatList
-        data={sessions}
+        data={campaigns}
         contentContainerClassName="pb-6"
         keyExtractor={(item) => String(item.id)}
         ListEmptyComponent={
           <EntityListEmpty
-            label="No sessions prepared"
-            detail="Create a session to stage tonight's party and opposition."
+            label="No campaigns yet"
+            detail="Create one to start tracking your party, locations, and sessions."
             icon="session"
           />
         }
@@ -63,8 +64,7 @@ export default function SessionsListScreen() {
             title={item.name}
             subtitle={summaryLine(item)}
             icon="session"
-            badge={item.combatantCount > 0 ? `${item.combatantCount} ready` : undefined}
-            onPress={() => router.push(`/session/${item.id}`)}
+            onPress={() => router.push(`/campaign/${item.id}`)}
           />
         )}
       />
