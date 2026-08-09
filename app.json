@@ -66,7 +66,8 @@
       "revenueCat": {
         "iosApiKey": "",
         "androidApiKey": ""
-      }
+      },
+      "aiProxyUrl": ""
     }
   }
 }

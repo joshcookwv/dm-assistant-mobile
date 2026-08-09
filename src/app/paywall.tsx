@@ -1,10 +1,18 @@
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, Linking, Pressable, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Purchases, {
+  PURCHASES_ERROR_CODE,
+  type PurchasesError,
+  type PurchasesOffering,
+  type PurchasesPackage,
+} from "react-native-purchases";
 
 import { AppIcon } from "@/components/app-icon";
 import { PrimaryButton } from "@/components/primary-button";
 import { Colors } from "@/constants/colors";
+import { PRIVACY_POLICY_URL } from "@/constants/links";
 import { FREE_CAMPAIGN_LIMIT, useEntitlement } from "@/lib/entitlements";
 
 const PREMIUM_FEATURES = [
@@ -17,7 +25,43 @@ const PREMIUM_FEATURES = [
 
 export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
-  const { isPremium } = useEntitlement();
+  const { isPremium, refresh } = useEntitlement();
+
+  const [offering, setOffering] = useState<PurchasesOffering | null>(null);
+  const [loadingOfferings, setLoadingOfferings] = useState(true);
+  const [purchasingId, setPurchasingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const offerings = await Purchases.getOfferings();
+        setOffering(offerings.current);
+      } catch {
+        // RevenueCat isn't configured yet (no API key), or no offering is
+        // set up in the dashboard — fall through to the "coming soon" state.
+      } finally {
+        setLoadingOfferings(false);
+      }
+    })();
+  }, []);
+
+  async function handlePurchase(pkg: PurchasesPackage) {
+    setPurchasingId(pkg.identifier);
+    try {
+      await Purchases.purchasePackage(pkg);
+      await refresh();
+      router.back();
+    } catch (error) {
+      const code = (error as PurchasesError | undefined)?.code;
+      if (code !== PURCHASES_ERROR_CODE.PURCHASE_CANCELLED_ERROR) {
+        Alert.alert("Purchase failed", error instanceof Error ? error.message : "Something went wrong. Try again.");
+      }
+    } finally {
+      setPurchasingId(null);
+    }
+  }
+
+  const packages = offering?.availablePackages ?? [];
 
   return (
     <ScrollView
@@ -53,15 +97,37 @@ export default function PaywallScreen() {
         <View className="items-center rounded-2xl border border-panel-border bg-panel p-4">
           <Text className="text-sm font-semibold text-accent-bright">You&apos;re already Premium — thank you!</Text>
         </View>
+      ) : packages.length > 0 ? (
+        <View className="gap-2">
+          {packages.map((pkg) => (
+            <PrimaryButton
+              key={pkg.identifier}
+              label={purchasingId === pkg.identifier ? "Purchasing…" : `Upgrade — ${pkg.product.priceString}`}
+              icon="sparkles"
+              disabled={purchasingId !== null}
+              onPress={() => handlePurchase(pkg)}
+            />
+          ))}
+        </View>
       ) : (
         <>
-          <PrimaryButton label="Upgrade — coming soon" icon="sparkles" disabled onPress={() => {}} />
+          <PrimaryButton label={loadingOfferings ? "Loading…" : "Upgrade — coming soon"} icon="sparkles" disabled onPress={() => {}} />
           <Text className="text-center text-xs text-muted">
-            Subscriptions aren&apos;t live yet — this screen is a placeholder until the App Store and Play
-            Store products are set up.
+            Subscriptions aren&apos;t live yet — this screen shows real pricing once the App Store and
+            Play Store products and a RevenueCat offering are set up.
           </Text>
         </>
       )}
+
+      <View className="items-center gap-1.5 pt-1">
+        <Text className="text-center text-[11px] leading-4 text-muted">
+          Subscriptions auto-renew until canceled. Manage or cancel anytime in your App Store or Google
+          Play account settings.
+        </Text>
+        <Pressable onPress={() => Linking.openURL(PRIVACY_POLICY_URL)} hitSlop={8}>
+          <Text className="text-center text-[11px] font-semibold text-accent-bright underline">Privacy Policy</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }

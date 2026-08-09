@@ -1,13 +1,20 @@
 import { useEffect, useState } from "react";
-import { Linking, Pressable, ScrollView, Text, View } from "react-native";
+import { Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 
 import { DeleteConfirmBar } from "@/components/delete-confirm-bar";
 import { FormField } from "@/components/form-field";
+import { PRIVACY_POLICY_URL } from "@/constants/links";
 import { exportBackup, importBackup, type BackupCounts } from "@/lib/backup";
-import { useEntitlement } from "@/lib/entitlements";
+import { FREE_CAMPAIGN_LIMIT, useEntitlement } from "@/lib/entitlements";
 import { deleteApiKey, getApiKey, setApiKey } from "@/lib/secure-settings";
+
+const MANAGE_SUBSCRIPTION_URL =
+  Platform.select({
+    ios: "itms-apps://apps.apple.com/account/subscriptions",
+    android: "https://play.google.com/store/account/subscriptions",
+  }) ?? "https://play.google.com/store/account/subscriptions";
 
 function DevOverrideChip({
   label,
@@ -30,7 +37,7 @@ function DevOverrideChip({
   );
 }
 
-const SUPPORT_ISSUES_URL = "https://github.com/joshcookwv/dm-assistant-mobile-support/issues/new";
+const SUPPORT_EMAIL_URL = "mailto:infernalbuldog@gmail.com?subject=Infernal%20Codex%20Feedback";
 
 type TestStatus = "idle" | "testing" | "success" | "error";
 
@@ -176,7 +183,27 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="p-4 pb-8">
-      <Text className="text-sm text-muted">
+      <View className="rounded-md border border-panel-border bg-panel p-4">
+        <Text className="text-xs font-semibold uppercase tracking-wide text-accent/80">Subscription</Text>
+        <Text className="mt-2 text-sm text-foreground/80">
+          Current plan: <Text className="font-semibold text-foreground">{isPremium ? "Premium" : "Free"}</Text>
+        </Text>
+        <Text className="mt-1 text-xs leading-4 text-muted">
+          {isPremium
+            ? "Unlimited campaigns and bundled AI (campaign recaps, session summaries, NPC generation, link suggestions) — no API key needed."
+            : `Free plan: ${FREE_CAMPAIGN_LIMIT} campaign, with your own Claude API key for NPC generation.`}
+        </Text>
+        <Pressable
+          onPress={() => (isPremium ? Linking.openURL(MANAGE_SUBSCRIPTION_URL) : router.push("/paywall"))}
+          className="mt-3 rounded-md bg-accent px-4 py-2.5 active:opacity-80"
+        >
+          <Text className="text-center font-medium text-accent-foreground">
+            {isPremium ? "Manage Subscription" : "Upgrade to Premium"}
+          </Text>
+        </Pressable>
+      </View>
+
+      <Text className="mt-4 text-sm text-muted">
         Add your Claude API key to enable AI-assisted features (NPC suggestions, PDF import, and more).
       </Text>
 
@@ -338,11 +365,18 @@ export default function SettingsScreen() {
           <Text className="mt-0.5 text-xs text-muted">SRD content attributions and open-source licenses</Text>
         </Pressable>
         <Pressable
-          onPress={() => Linking.openURL(SUPPORT_ISSUES_URL)}
+          onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+          className="rounded-md border border-panel-border bg-panel px-4 py-3 active:bg-white/5"
+        >
+          <Text className="text-sm font-medium text-foreground">Privacy Policy</Text>
+          <Text className="mt-0.5 text-xs text-muted">Opens in your browser</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => Linking.openURL(SUPPORT_EMAIL_URL)}
           className="rounded-md border border-panel-border bg-panel px-4 py-3 active:bg-white/5"
         >
           <Text className="text-sm font-medium text-foreground">Report an Issue</Text>
-          <Text className="mt-0.5 text-xs text-muted">Opens the public issue tracker in your browser</Text>
+          <Text className="mt-0.5 text-xs text-muted">Opens your email app to message support directly</Text>
         </Pressable>
       </View>
     </ScrollView>
