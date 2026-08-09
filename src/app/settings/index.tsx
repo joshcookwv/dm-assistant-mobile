@@ -36,7 +36,7 @@ function DevOverrideChip({
   );
 }
 
-const SUPPORT_EMAIL_URL = "mailto:infernalbulldog@gmail.com?subject=Infernal%20Codex%20Feedback";
+const SUPPORT_EMAIL_URL = "mailto:infernalbuldog@gmail.com?subject=Infernal%20Codex%20Feedback";
 
 type TestStatus = "idle" | "testing" | "success" | "error";
 

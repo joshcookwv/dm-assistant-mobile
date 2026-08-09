@@ -20,17 +20,21 @@ Since there's no iOS build yet at all (see README), doing Android first gets som
 
 ## 3. Required before Play Store will accept the listing
 
-- [x] **Privacy policy URL.** Live at https://joshcookwv.github.io/dm-assistant-mobile-support/ — a small standalone public repo ([`joshcookwv/dm-assistant-mobile-support`](https://github.com/joshcookwv/dm-assistant-mobile-support)) since the app's source repo is private and GitHub Pages can't be made public from a private repo without a paid plan. Same page also hosts the public issue tracker, linked from the app's Settings screen. **Still needed:** paste this URL into Play Console's "App content" → "Privacy policy" field once you're in there.
-- [ ] **Data safety form** (Play Console → App content → Data safety). Draft answers:
-  - Does your app collect or share user data? **Yes** — campaign content (NPC names/details, PDF contents) is sent to Anthropic's API, but *only* when the user actively taps an AI feature and *only* after the user supplies their own API key.
-  - Data collected: none stored or transmitted by the app's own servers (it has none). Third-party sharing: user-initiated content sent to Anthropic when AI features are used.
-  - Is data encrypted in transit? Yes (HTTPS to Anthropic).
-  - Can users request data deletion? N/A — nothing is stored outside the user's own device; uninstalling the app deletes everything.
+- [x] **Privacy policy URL.** Live at https://joshcookwv.github.io/dm-assistant-mobile-support/ — a small standalone public repo ([`joshcookwv/dm-assistant-mobile-support`](https://github.com/joshcookwv/dm-assistant-mobile-support)), originally split out since the app's source repo was private and GitHub Pages couldn't be made public from a private repo without a paid plan — now that `dm-assistant-mobile` itself is public, this split repo could be folded back in, but hasn't been. The app's Settings screen now links "Report an Issue" to a support email (infernalbuldog@gmail.com) instead of that repo's issue tracker — **the live privacy-policy page itself still needs the same contact-method update, made directly in that repo** (this repo can't reach it). **Still needed:** paste the privacy-policy URL into Play Console's "App content" → "Privacy policy" field once you're in there.
+- [ ] **Data safety form** (Play Console → App content → Data safety). Draft answers — **these changed once the Premium tier landed** (previously the app truly had no server of its own; now it does):
+  - Does your app collect or share user data? **Yes**, in three separate flows:
+    1. **Free plan AI features** — campaign content (NPC names/details, PDF contents) is sent directly from the device to Anthropic's API, only when the user taps an AI feature and only after supplying their own API key.
+    2. **Premium AI features** — campaign content used for AI features (session recaps, campaign summaries, bundled NPC generation, link suggestions) is sent to our own backend server (`server/`), which forwards it to Anthropic and does not persist it afterward.
+    3. **Premium subscription/entitlement** — an anonymous per-device identifier is sent to RevenueCat to verify subscription status. Actual payment/financial details are handled entirely by the App Store or Google Play and never reach us.
+  - Data collected: nothing is stored by our own infrastructure beyond the lifetime of a single AI request. Third-party sharing: Anthropic (AI generation, both plans), RevenueCat (entitlement verification, Premium only), Apple/Google (payment processing, Premium only).
+  - **Financial info / purchase history** — mark this Play Console data-safety category as collected once Premium ships; it's handled by Google Play's own billing on Android (and the App Store on iOS), not transmitted to us directly, but Play Console still expects it declared for apps offering subscriptions.
+  - Is data encrypted in transit? Yes (HTTPS to Anthropic, to our backend, and to RevenueCat).
+  - Can users request data deletion? Local device data: uninstalling the app deletes everything. There's no account with us to delete; subscription/billing data is managed through the user's App Store or Google Play account.
 - [ ] **Content rating questionnaire** (IARC, via Play Console). Expect a **Teen** rating (fantasy violence references in monster stat blocks/combat descriptions) — answer honestly; this is a standard TTRPG-content rating, not a red flag.
 - [ ] **Target audience & content**: mark as not directed at children (13+ is the realistic floor given D&D content).
 - [x] **App icon** for the store listing: 512×512 PNG, 32-bit with alpha. Downscaled from the in-app icon — [`docs/store-assets/app-icon-512.png`](store-assets/app-icon-512.png).
 - [x] **Feature graphic**: 1024×500, shown at the top of the store listing. Recreated at full resolution from the dashboard hero banner's actual design (same colors/copy/logo treatment, not just a cropped screenshot) — [`docs/store-assets/feature-graphic.jpg`](store-assets/feature-graphic.jpg) (upload this one — Play rejects alpha on this slot) or [`.png`](store-assets/feature-graphic.png) (also alpha-free).
-- [ ] **Screenshots**: minimum 2, Play Store recommends 4–8. Phone screenshots need to be actual device captures (not simulator chrome) at a minimum 320px, max 3840px on the longest side. Pending re-capture again — the Campaign/Location rework and Infernal Codex rename make the current set in [`docs/screenshots/`](screenshots/) stale (`Session-*.jpg` shows a retired screen).
+- [ ] **Screenshots**: minimum 2, Play Store recommends 4–8. Phone screenshots need to be actual device captures (not simulator chrome) at a minimum 320px, max 3840px on the longest side. Pending re-capture again — the Campaign/Location rework and Infernal Codex rename make the current set in [`docs/screenshots/`](screenshots/) stale (`Session-*.jpg` shows a retired screen), and the newer Campaign Overview/search screen and the Premium paywall screen aren't captured at all yet — capture those once the paywall shows real pricing (see section 8).
 - [ ] **Short description**: max 80 characters.
 - [ ] **Full description**: max 4000 characters.
 
@@ -41,12 +45,15 @@ Since there's no iOS build yet at all (see README), doing Android first gets som
 - [ ] Screenshots — see section 3 above; pending re-capture after the Campaign rework.
 - [x] **SRD content licensing — researched and fixed.** Full writeup in section 7 below. Verdict was: both OGL 1.0a and CC-BY-4.0 explicitly permit exactly this (compiling into a distributed app, commercial use included) — bundling vs. fetching-at-runtime makes no legal difference — but the app was missing the notice/attribution text both licenses make mandatory as the condition of that permission. **Fixed:** added a Legal &amp; Licenses screen (`src/app/settings/legal.tsx`, reached via a button at the bottom of Settings) containing the CC-BY attribution sentences, the full OGL 1.0a text, and the generated Section 15 notice.
 - [ ] Uninstall the orphaned `com.joshcook.dmassistant` dev-client build from your test device — it's a different package than the current `com.infernalbulldog.dmassistant`, so it's safe to remove, but has to be done on-device (long-press the icon → Uninstall).
+- [ ] Premium subscription tier — see section 8 below. Not yet ready to submit with: no store subscription products exist, RevenueCat isn't configured, and the backend AI proxy isn't deployed.
 
 ## Screenshot preview
 
 _Pending re-capture — Session was replaced by Campaigns/Locations, the app was renamed to
 Infernal Codex, and Encounters/Dashboard both changed. The existing captures (including
-`Session-1.jpg`/`Session-2.jpg`, which show a retired screen) no longer represent the app._
+`Session-1.jpg`/`Session-2.jpg`, which show a retired screen) no longer represent the app.
+The Campaign Overview/search screen and the Premium paywall screen are new since the last
+capture pass and aren't represented at all yet._
 
 ## 5. Draft listing copy
 
@@ -71,15 +78,15 @@ Infernal Codex
 > **Features:**
 > • Rules — spells, conditions, classes, species, feats, backgrounds, magic items, equipment, weapons, and armor from the D&D 5e SRD (2014 and 2024 rulesets), plus dozens of third-party sourcebooks — all bundled with the app and readable with no internet connection, plus a combat quick-reference page for the table.
 > • Monsters — official SRD creatures and your own homebrew in one searchable list, filterable to Official or Homebrew, searchable by name or challenge rating.
-> • NPCs — track name, race, role, location, and notes, with optional AI-suggested names and descriptions.
+> • NPCs — track name, race, role, location, and notes, with optional AI-suggested names and descriptions, plus a relationship log connecting each NPC to the allies, rivals, and other NPCs in your world.
 > • Notes — searchable markdown campaign notes.
-> • Campaigns — a persistent party roster plus locations; each location shows the NPCs who've shown up there, the encounters that happened there, and the notes tagged to it.
+> • Campaigns — a persistent party roster, locations, and a Campaign Overview dashboard with a stat summary and a search bar across every NPC, location, session, and note in that campaign. Each location shows the NPCs who've shown up there, the encounters that happened there, and the notes tagged to it.
 > • One-Shot Encounters — a live combat tracker for quick, unlinked fights: initiative order, HP, AC, and conditions, built from official monsters, your own homebrew, or custom combatants.
 > • Maps — attach images from your photo library or link out to maps hosted elsewhere.
 > • PDF import — point it at a sourcebook or homebrew PDF and Claude reads it directly, pulling out NPCs, stat blocks, and rules text for you to review before anything saves.
 > • Backup & restore — export everything to one file via the share sheet; restore it on a new phone.
 >
-> Bring your own Claude API key (optional, from console.anthropic.com) to unlock the AI features. Everything else works with zero configuration.
+> **Free vs. Premium.** The Free plan covers one campaign at a time, with every feature above available — NPC name/description suggestions and PDF import run on your own Claude API key (optional, from console.anthropic.com). Premium removes the one-campaign limit and adds AI-written campaign recaps and session summaries, AI-suggested NPC and relationship links pulled from your session notes, and bundled NPC generation with no API key required — all included in the subscription, nothing extra to configure.
 
 ### Category
 Tools, or Entertainment (Play Console offers both — Tools fits the "utility app" framing better than Entertainment/Games, since this isn't itself a game)
@@ -95,13 +102,17 @@ Hosted at https://joshcookwv.github.io/dm-assistant-mobile-support/ ([source](ht
 >
 > Infernal Codex does not collect, store, or transmit any personal data to its developer. All campaign data — NPCs, notes, encounters, maps, sessions, and your homebrew monsters — is stored locally on your device and never leaves it.
 >
-> **AI features (optional).** If you choose to add a Claude API key in Settings and use an AI-assisted feature (NPC suggestions or PDF import), the relevant content (e.g. an NPC's name/race/role, or a PDF's contents) is sent directly from your device to Anthropic's API (anthropic.com) to generate a response. Your API key is stored only in your device's secure keychain. See Anthropic's own privacy policy for how they handle that data: https://www.anthropic.com/legal/privacy
+> **AI features on the Free plan.** If you choose to add your own Claude API key in Settings and use an AI-assisted feature (NPC suggestions or PDF import), the relevant content (e.g. an NPC's name/race/role, or a PDF's contents) is sent directly from your device to Anthropic's API (anthropic.com) to generate a response. Your API key is stored only in your device's secure keychain. See Anthropic's own privacy policy for how they handle that data: https://www.anthropic.com/legal/privacy
+>
+> **AI features on Premium.** Campaign recaps, session summaries, bundled NPC generation, and link suggestions are processed by our own backend server rather than your own API key. The relevant campaign content (e.g. session notes, NPC names) is sent from your device to our server, which forwards it to Anthropic's API to generate a response and returns the result to you. Our server does not store this content after the request completes.
+>
+> **Premium subscription.** If you subscribe to Premium, your entitlement is verified through RevenueCat, our subscription management provider, using an anonymous per-device identifier — no personal account details of yours pass through our own servers. See RevenueCat's privacy policy: https://www.revenuecat.com/privacy Your actual payment information is handled entirely by the App Store or Google Play; we never see or store it.
 >
 > **No analytics, no tracking, no ads.** This app contains no third-party analytics, advertising, or tracking SDKs of any kind.
 >
-> **Data deletion.** Since nothing is stored outside your device, uninstalling the app removes all app data. There is no account to delete.
+> **Data deletion.** Since nothing is stored outside your device (or, for Premium AI requests, beyond the moment they're processed), uninstalling the app removes all app data. There is no account to delete; subscriptions are managed through your App Store or Google Play account.
 >
-> **Contact.** Email infernalbulldog@gmail.com for any privacy questions.
+> **Contact.** Email infernalbuldog@gmail.com for any privacy questions.
 
 ## 7. SRD content licensing (researched 2026-08-06)
 
@@ -159,3 +170,18 @@ Two concrete obligations, both currently unmet:
 A **Legal &amp; Licenses screen** (`src/app/settings/legal.tsx`, button at the bottom of Settings) containing exactly the three pieces above: the CC-BY attribution sentences, the OGL 1.0a full license text, and the Section 15 block. Settings was restructured into its own mini-stack (`src/app/settings/_layout.tsx`) so this screen gets normal back navigation, matching how Rules/Monsters/Session are already built.
 
 Sources: [OGL 1.0a full text](https://www.d20srd.org/ogl.htm) · [CC BY 4.0 legal code](https://creativecommons.org/licenses/by/4.0/) · [Wizards' SRD 5.2 CC release](https://www.dndbeyond.com/srd) · [Open5e](https://open5e.com/) · [Open5e API repo](https://github.com/open5e/open5e-api)
+
+## 8. Premium subscription — status and what's still needed for submission
+
+**Built in-app:** the free/Premium split (1-campaign cap on Free), `useEntitlement()` client-side entitlement state backed by `react-native-purchases`, a paywall screen that reads real RevenueCat offerings when configured (and falls back to a "coming soon" state until then), a Subscription section in Settings, and the bundled-AI backend (`server/`) implementing the Premium-only AI features (campaign recap, session summary, bundled NPC generation, link suggestions) on Claude Sonnet 5 / Haiku 4.5.
+
+**Not yet done — all outside the app's code, and all block a submission that actually sells Premium:**
+- [ ] Subscription product created in App Store Connect and Google Play Console (with Apple's Paid Applications Agreement and a Play Console payments profile active).
+- [ ] RevenueCat project configured: apps linked, `premium` entitlement created, store products attached to it, an offering/package published, and the resulting SDK/secret keys generated.
+- [ ] `app.json`'s `extra.revenueCat.{iosApiKey,androidApiKey}` and `extra.aiProxyUrl` filled in with real values (currently empty placeholders).
+- [ ] `server/` deployed somewhere (host not yet chosen — see `server/README.md`) with `ANTHROPIC_API_KEY` and `REVENUECAT_SECRET_KEY` set.
+- [ ] **Apple subscription disclosure requirement (App Store Review Guideline 3.1.2):** auto-renewable subscriptions must show title, length, and price directly on or right next to the purchase button, plus functional links to a Terms of Use (EULA) and the Privacy Policy at that same point. The current `paywall.tsx` shows price once real offerings load, but has no Terms of Use link yet — **there is no Terms of Use / EULA for this app at all yet**, only the Privacy Policy and the OGL/CC license text. Needs drafting before an App Store submission that includes Premium (Apple's default standard EULA can be used if a custom one isn't wanted, but it should be linked explicitly rather than assumed).
+- [ ] Play Console's subscriptions-specific store listing requirements (a subscriptions app needs to be flagged as such; Google also expects clear in-app disclosure of price/billing period before purchase, which the paywall already shows once real packages load).
+- [ ] Screenshots of the Overview/search screen and the paywall — see section 3.
+
+None of this blocks submitting the **Free-only** version of the app as-is — the Premium code paths degrade gracefully (dev-override toggle aside) when unconfigured. It only blocks submitting *with Premium actually purchasable*.
