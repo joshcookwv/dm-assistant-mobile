@@ -101,7 +101,7 @@ Hosted at https://joshcookwv.github.io/dm-assistant-mobile-support/ ([source](ht
 >
 > **Data deletion.** Since nothing is stored outside your device, uninstalling the app removes all app data. There is no account to delete.
 >
-> **Contact.** Use the [issue tracker](https://github.com/joshcookwv/dm-assistant-mobile-support/issues/new) for any privacy questions.
+> **Contact.** Email infernalbulldog@gmail.com for any privacy questions.
 
 ## 7. SRD content licensing (researched 2026-08-06)
 

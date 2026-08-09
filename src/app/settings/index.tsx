@@ -36,7 +36,7 @@ function DevOverrideChip({
   );
 }
 
-const SUPPORT_ISSUES_URL = "https://github.com/joshcookwv/dm-assistant-mobile-support/issues/new";
+const SUPPORT_EMAIL_URL = "mailto:infernalbulldog@gmail.com?subject=Infernal%20Codex%20Feedback";
 
 type TestStatus = "idle" | "testing" | "success" | "error";
 
@@ -364,11 +364,11 @@ export default function SettingsScreen() {
           <Text className="mt-0.5 text-xs text-muted">SRD content attributions and open-source licenses</Text>
         </Pressable>
         <Pressable
-          onPress={() => Linking.openURL(SUPPORT_ISSUES_URL)}
+          onPress={() => Linking.openURL(SUPPORT_EMAIL_URL)}
           className="rounded-md border border-panel-border bg-panel px-4 py-3 active:bg-white/5"
         >
           <Text className="text-sm font-medium text-foreground">Report an Issue</Text>
-          <Text className="mt-0.5 text-xs text-muted">Opens the public issue tracker in your browser</Text>
+          <Text className="mt-0.5 text-xs text-muted">Opens your email app to message support directly</Text>
         </Pressable>
       </View>
     </ScrollView>
