@@ -5,6 +5,7 @@ import * as DocumentPicker from "expo-document-picker";
 
 import { DeleteConfirmBar } from "@/components/delete-confirm-bar";
 import { FormField } from "@/components/form-field";
+import { PRIVACY_POLICY_URL } from "@/constants/links";
 import { exportBackup, importBackup, type BackupCounts } from "@/lib/backup";
 import { FREE_CAMPAIGN_LIMIT, useEntitlement } from "@/lib/entitlements";
 import { deleteApiKey, getApiKey, setApiKey } from "@/lib/secure-settings";
@@ -362,6 +363,13 @@ export default function SettingsScreen() {
         >
           <Text className="text-sm font-medium text-foreground">Legal &amp; Licenses</Text>
           <Text className="mt-0.5 text-xs text-muted">SRD content attributions and open-source licenses</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+          className="rounded-md border border-panel-border bg-panel px-4 py-3 active:bg-white/5"
+        >
+          <Text className="text-sm font-medium text-foreground">Privacy Policy</Text>
+          <Text className="mt-0.5 text-xs text-muted">Opens in your browser</Text>
         </Pressable>
         <Pressable
           onPress={() => Linking.openURL(SUPPORT_EMAIL_URL)}

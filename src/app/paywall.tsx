@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Purchases, {
@@ -12,6 +12,7 @@ import Purchases, {
 import { AppIcon } from "@/components/app-icon";
 import { PrimaryButton } from "@/components/primary-button";
 import { Colors } from "@/constants/colors";
+import { PRIVACY_POLICY_URL } from "@/constants/links";
 import { FREE_CAMPAIGN_LIMIT, useEntitlement } from "@/lib/entitlements";
 
 const PREMIUM_FEATURES = [
@@ -117,6 +118,16 @@ export default function PaywallScreen() {
           </Text>
         </>
       )}
+
+      <View className="items-center gap-1.5 pt-1">
+        <Text className="text-center text-[11px] leading-4 text-muted">
+          Subscriptions auto-renew until canceled. Manage or cancel anytime in your App Store or Google
+          Play account settings.
+        </Text>
+        <Pressable onPress={() => Linking.openURL(PRIVACY_POLICY_URL)} hitSlop={8}>
+          <Text className="text-center text-[11px] font-semibold text-accent-bright underline">Privacy Policy</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }
