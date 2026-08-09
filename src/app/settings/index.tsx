@@ -6,7 +6,29 @@ import * as DocumentPicker from "expo-document-picker";
 import { DeleteConfirmBar } from "@/components/delete-confirm-bar";
 import { FormField } from "@/components/form-field";
 import { exportBackup, importBackup, type BackupCounts } from "@/lib/backup";
+import { useEntitlement } from "@/lib/entitlements";
 import { deleteApiKey, getApiKey, setApiKey } from "@/lib/secure-settings";
+
+function DevOverrideChip({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className={`rounded-full border px-3 py-1.5 ${selected ? "border-accent bg-accent" : "border-panel-border bg-panel-raised"}`}
+    >
+      <Text className={`text-xs font-semibold ${selected ? "text-accent-foreground" : "text-foreground"}`}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
 
 const SUPPORT_ISSUES_URL = "https://github.com/joshcookwv/dm-assistant-mobile-support/issues/new";
 
@@ -14,6 +36,7 @@ type TestStatus = "idle" | "testing" | "success" | "error";
 
 function summarizeCounts(counts: BackupCounts): string {
   const parts = [
+    counts.campaigns && `${counts.campaigns} campaign${counts.campaigns === 1 ? "" : "s"}`,
     counts.npcs && `${counts.npcs} NPC${counts.npcs === 1 ? "" : "s"}`,
     counts.notes && `${counts.notes} note${counts.notes === 1 ? "" : "s"}`,
     counts.encounters && `${counts.encounters} encounter${counts.encounters === 1 ? "" : "s"}`,
@@ -25,6 +48,7 @@ function summarizeCounts(counts: BackupCounts): string {
 }
 
 export default function SettingsScreen() {
+  const { isPremium, devOverride, setDevOverride } = useEntitlement();
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [saving, setSaving] = useState(false);
@@ -268,6 +292,35 @@ export default function SettingsScreen() {
           {importError && <Text className="mt-2 text-sm text-red-400">{importError}</Text>}
         </View>
       </View>
+
+      {__DEV__ && (
+        <View className="mt-6 rounded-md border border-panel-border bg-panel p-4">
+          <Text className="text-xs font-semibold uppercase tracking-wide text-accent/80">
+            Dev: Entitlement Override
+          </Text>
+          <Text className="mt-2 text-sm text-foreground/80">
+            Current plan: {isPremium ? "Premium" : "Free"}. This panel only appears in dev builds
+            — it lets premium-gated features be tested before real subscription products exist.
+          </Text>
+          <View className="mt-3 flex-row flex-wrap gap-2">
+            <DevOverrideChip
+              label="Auto (real entitlement)"
+              selected={devOverride === null}
+              onPress={() => setDevOverride(null)}
+            />
+            <DevOverrideChip
+              label="Force Free"
+              selected={devOverride === false}
+              onPress={() => setDevOverride(false)}
+            />
+            <DevOverrideChip
+              label="Force Premium"
+              selected={devOverride === true}
+              onPress={() => setDevOverride(true)}
+            />
+          </View>
+        </View>
+      )}
 
       <View className="mt-6 gap-2">
         <Pressable
