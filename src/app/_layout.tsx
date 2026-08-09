@@ -132,6 +132,10 @@ export default function RootLayout() {
               name="onboarding"
               options={{ headerShown: false, swipeEnabled: false, drawerItemStyle: { height: 0 } }}
             />
+            <Drawer.Screen
+              name="paywall"
+              options={{ headerShown: false, swipeEnabled: false, drawerItemStyle: { height: 0 } }}
+            />
           </Drawer>
         </SafeAreaView>
       </GestureHandlerRootView>

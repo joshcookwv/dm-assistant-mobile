@@ -84,6 +84,20 @@ export default function CampaignDetailScreen() {
         className="rounded-md border border-panel-border bg-panel px-3 py-2.5 text-lg font-bold text-foreground"
       />
 
+      <Pressable
+        onPress={() => router.push(`/campaign/${campaignId}/overview`)}
+        className="flex-row items-center gap-3 rounded-2xl border border-panel-border bg-panel px-4 py-3 active:bg-panel-raised"
+      >
+        <View className="h-10 w-10 items-center justify-center rounded-xl bg-accent-soft">
+          <AppIcon name="chart" size={19} color={Colors.accentBright} />
+        </View>
+        <View className="flex-1">
+          <Text className="font-semibold text-foreground">Campaign Overview</Text>
+          <Text className="mt-0.5 text-xs text-muted">Stats, search, recent sessions, and AI recap</Text>
+        </View>
+        <AppIcon name="chevronRight" size={16} color={Colors.subtle} />
+      </Pressable>
+
       <View>
         <View className="mb-2 flex-row items-center justify-between">
           <Text className="text-xs font-semibold uppercase tracking-wide text-accent/80">
