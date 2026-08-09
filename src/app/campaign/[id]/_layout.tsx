@@ -6,6 +6,7 @@ export default function CampaignDetailStackLayout() {
   return (
     <Stack screenOptions={sectionStackScreenOptions}>
       <Stack.Screen name="index" options={{ title: "" }} />
+      <Stack.Screen name="overview" options={{ title: "Overview" }} />
       <Stack.Screen name="pc/[pcId]" options={{ title: "" }} />
       <Stack.Screen name="location/[locationId]" options={{ title: "" }} />
       <Stack.Screen name="session/[sessionId]" options={{ title: "" }} />

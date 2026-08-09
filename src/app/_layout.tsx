@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import { Colors } from "@/constants/colors";
+import { EntitlementProvider } from "@/lib/entitlements";
 
 function AppDrawerContent(props: DrawerContentComponentProps) {
   return (
@@ -45,78 +46,99 @@ function drawerIcon(name: AppIconName) {
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={["bottom"]}>
-        <StatusBar style="light" />
-        <Drawer
-          drawerContent={(props) => <AppDrawerContent {...props} />}
-          screenOptions={{
-            swipeEnabled: false,
-            headerStyle: { backgroundColor: Colors.panelRaised },
-            headerTintColor: Colors.foreground,
-            headerTitleStyle: { color: Colors.foreground, fontSize: 19, fontWeight: "700" },
-            headerShadowVisible: false,
-            drawerStyle: { backgroundColor: Colors.panel, width: 286 },
-            drawerItemStyle: { borderRadius: 12, marginHorizontal: 10, marginVertical: 2 },
-            drawerLabelStyle: { fontSize: 14, fontWeight: "600" },
-            drawerActiveTintColor: Colors.accentBright,
-            drawerInactiveTintColor: Colors.muted,
-            drawerActiveBackgroundColor: Colors.accentSoft,
-            overlayColor: "rgba(5, 2, 1, 0.72)",
-            sceneStyle: { backgroundColor: Colors.background },
-          }}
-        >
-        <Drawer.Screen
-          name="index"
-          options={{ title: "Dashboard", drawerLabel: "Dashboard", drawerIcon: drawerIcon("dashboard") }}
-        />
-        <Drawer.Screen
-          name="rules"
-          options={{ title: "Rules", drawerLabel: "Rules", drawerIcon: drawerIcon("rules"), headerShown: false }}
-        />
-        <Drawer.Screen
-          name="monsters"
-          options={{ title: "Monsters", drawerLabel: "Monsters", drawerIcon: drawerIcon("monsters"), headerShown: false }}
-        />
-        <Drawer.Screen
-          name="npcs"
-          options={{ title: "NPCs", drawerLabel: "NPCs", drawerIcon: drawerIcon("npcs"), headerShown: false }}
-        />
-        <Drawer.Screen
-          name="notes"
-          options={{ title: "Notes", drawerLabel: "Notes", drawerIcon: drawerIcon("notes"), headerShown: false }}
-        />
-        <Drawer.Screen
-          name="campaign"
-          options={{ title: "Campaigns", drawerLabel: "Campaigns", drawerIcon: drawerIcon("session"), headerShown: false }}
-        />
-        <Drawer.Screen
-          name="encounters"
-          options={{
-            title: "One-Shot Encounters",
-            drawerLabel: "One-Shot Encounters",
-            drawerIcon: drawerIcon("encounters"),
-            headerShown: false,
-          }}
-        />
-        <Drawer.Screen
-          name="maps"
-          options={{ title: "Maps", drawerLabel: "Maps", drawerIcon: drawerIcon("maps"), headerShown: false }}
-        />
-        <Drawer.Screen
-          name="import"
-          options={{ title: "Import PDF", drawerLabel: "Import PDF", drawerIcon: drawerIcon("import") }}
-        />
-        <Drawer.Screen
-          name="settings"
-          options={{ title: "Settings", drawerLabel: "Settings", drawerIcon: drawerIcon("settings"), headerShown: false }}
-        />
-        <Drawer.Screen
-          name="onboarding"
-          options={{ headerShown: false, swipeEnabled: false, drawerItemStyle: { height: 0 } }}
-        />
-        </Drawer>
-      </SafeAreaView>
-    </GestureHandlerRootView>
+    <EntitlementProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={["bottom"]}>
+          <StatusBar style="light" />
+          <Drawer
+            drawerContent={(props) => <AppDrawerContent {...props} />}
+            screenOptions={{
+              swipeEnabled: false,
+              headerStyle: { backgroundColor: Colors.panelRaised },
+              headerTintColor: Colors.foreground,
+              headerTitleStyle: { color: Colors.foreground, fontSize: 19, fontWeight: "700" },
+              headerShadowVisible: false,
+              drawerStyle: { backgroundColor: Colors.panel, width: 286 },
+              drawerItemStyle: { borderRadius: 12, marginHorizontal: 10, marginVertical: 2 },
+              drawerLabelStyle: { fontSize: 14, fontWeight: "600" },
+              drawerActiveTintColor: Colors.accentBright,
+              drawerInactiveTintColor: Colors.muted,
+              drawerActiveBackgroundColor: Colors.accentSoft,
+              overlayColor: "rgba(5, 2, 1, 0.72)",
+              sceneStyle: { backgroundColor: Colors.background },
+            }}
+          >
+            <Drawer.Screen
+              name="index"
+              options={{ title: "Dashboard", drawerLabel: "Dashboard", drawerIcon: drawerIcon("dashboard") }}
+            />
+            <Drawer.Screen
+              name="rules"
+              options={{ title: "Rules", drawerLabel: "Rules", drawerIcon: drawerIcon("rules"), headerShown: false }}
+            />
+            <Drawer.Screen
+              name="monsters"
+              options={{
+                title: "Monsters",
+                drawerLabel: "Monsters",
+                drawerIcon: drawerIcon("monsters"),
+                headerShown: false,
+              }}
+            />
+            <Drawer.Screen
+              name="npcs"
+              options={{ title: "NPCs", drawerLabel: "NPCs", drawerIcon: drawerIcon("npcs"), headerShown: false }}
+            />
+            <Drawer.Screen
+              name="notes"
+              options={{ title: "Notes", drawerLabel: "Notes", drawerIcon: drawerIcon("notes"), headerShown: false }}
+            />
+            <Drawer.Screen
+              name="campaign"
+              options={{
+                title: "Campaigns",
+                drawerLabel: "Campaigns",
+                drawerIcon: drawerIcon("session"),
+                headerShown: false,
+              }}
+            />
+            <Drawer.Screen
+              name="encounters"
+              options={{
+                title: "One-Shot Encounters",
+                drawerLabel: "One-Shot Encounters",
+                drawerIcon: drawerIcon("encounters"),
+                headerShown: false,
+              }}
+            />
+            <Drawer.Screen
+              name="maps"
+              options={{ title: "Maps", drawerLabel: "Maps", drawerIcon: drawerIcon("maps"), headerShown: false }}
+            />
+            <Drawer.Screen
+              name="import"
+              options={{ title: "Import PDF", drawerLabel: "Import PDF", drawerIcon: drawerIcon("import") }}
+            />
+            <Drawer.Screen
+              name="settings"
+              options={{
+                title: "Settings",
+                drawerLabel: "Settings",
+                drawerIcon: drawerIcon("settings"),
+                headerShown: false,
+              }}
+            />
+            <Drawer.Screen
+              name="onboarding"
+              options={{ headerShown: false, swipeEnabled: false, drawerItemStyle: { height: 0 } }}
+            />
+            <Drawer.Screen
+              name="paywall"
+              options={{ headerShown: false, swipeEnabled: false, drawerItemStyle: { height: 0 } }}
+            />
+          </Drawer>
+        </SafeAreaView>
+      </GestureHandlerRootView>
+    </EntitlementProvider>
   );
 }

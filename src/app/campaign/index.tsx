@@ -7,6 +7,7 @@ import { EntityListEmpty, EntityListItem } from "@/components/entity-list-item";
 import { PrimaryButton } from "@/components/primary-button";
 import { Colors } from "@/constants/colors";
 import { createCampaign, listCampaigns, type CampaignSummary } from "@/lib/campaigns";
+import { useEntitlement } from "@/lib/entitlements";
 
 function summaryLine(campaign: CampaignSummary): string {
   if (campaign.pcCount === 0 && campaign.locationCount === 0) return "Nothing set up yet";
@@ -20,12 +21,19 @@ function summaryLine(campaign: CampaignSummary): string {
 }
 
 export default function CampaignsListScreen() {
+  const { isPremium, campaignLimit } = useEntitlement();
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
 
   const refresh = useCallback(() => setCampaigns(listCampaigns()), []);
   useFocusEffect(refresh);
 
+  const atLimit = !isPremium && campaigns.length >= campaignLimit;
+
   function handleCreate() {
+    if (atLimit) {
+      router.push("/paywall");
+      return;
+    }
     const created = createCampaign("New Campaign");
     router.push(`/campaign/${created.id}`);
   }
@@ -45,7 +53,16 @@ export default function CampaignsListScreen() {
             </Text>
           </View>
         </View>
-        <PrimaryButton label="New Campaign" onPress={handleCreate} />
+        <PrimaryButton
+          label={atLimit ? "Upgrade for more campaigns" : "New Campaign"}
+          icon={atLimit ? "sparkles" : "add"}
+          onPress={handleCreate}
+        />
+        {atLimit && (
+          <Text className="text-center text-xs text-muted">
+            Free plan is limited to {campaignLimit} campaign. Upgrade to create more.
+          </Text>
+        )}
       </View>
 
       <FlatList
