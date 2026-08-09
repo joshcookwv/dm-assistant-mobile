@@ -33,6 +33,7 @@ const ICONS = {
   chevronUp: { ios: "chevron.up", android: "expand_less", web: "expand_less" },
   image: { ios: "photo.fill", android: "image", web: "image" },
   link: { ios: "link", android: "link", web: "link" },
+  lock: { ios: "lock.fill", android: "lock", web: "lock" },
   clock: { ios: "clock.fill", android: "schedule", web: "schedule" },
   tag: { ios: "tag.fill", android: "sell", web: "sell" },
   trash: { ios: "trash.fill", android: "delete", web: "delete" },

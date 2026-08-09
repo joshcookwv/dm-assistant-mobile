@@ -1,19 +1,23 @@
 import { useCallback, useMemo, useState } from "react";
-import { Alert, FlatList, Pressable, Text, View } from "react-native";
+import { FlatList, Pressable, Text, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import { EntityListEmpty, EntityListItem } from "@/components/entity-list-item";
+import { LockedAiButton } from "@/components/locked-ai-button";
+import { PrimaryButton } from "@/components/primary-button";
 import { SearchBar } from "@/components/search-bar";
 import { Colors } from "@/constants/colors";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { generateCampaignRecap } from "@/lib/ai-premium";
 import {
   getCampaignOverviewStats,
+  getCampaignTimeline,
   searchCampaign,
   type CampaignOverviewStats,
   type CampaignSearchResult,
 } from "@/lib/campaign-intelligence";
-import { listCampaignSessions, type CampaignSession } from "@/lib/campaigns";
+import { getCampaign, listCampaignSessions, updateCampaign, type Campaign, type CampaignSession } from "@/lib/campaigns";
 import { useEntitlement } from "@/lib/entitlements";
 
 const RESULT_BADGES: Record<CampaignSearchResult["type"], string> = {
@@ -42,14 +46,20 @@ function StatTile({ label, value }: { label: string; value: number }) {
 export default function CampaignOverviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const campaignId = Number(id);
-  const { isPremium } = useEntitlement();
+  const { isPremium, appUserId } = useEntitlement();
 
+  const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [stats, setStats] = useState<CampaignOverviewStats | null>(null);
   const [recentSessions, setRecentSessions] = useState<CampaignSession[]>([]);
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query);
 
+  const [recapLoading, setRecapLoading] = useState(false);
+  const [recapError, setRecapError] = useState<string | null>(null);
+  const [recapResult, setRecapResult] = useState<string | null>(null);
+
   const refresh = useCallback(() => {
+    setCampaign(getCampaign(campaignId) ?? null);
     setStats(getCampaignOverviewStats(campaignId));
     setRecentSessions(listCampaignSessions(campaignId).slice(0, 5));
   }, [campaignId]);
@@ -78,12 +88,35 @@ export default function CampaignOverviewScreen() {
     }
   }
 
-  function handleGenerateRecap() {
-    if (!isPremium) {
-      router.push("/paywall");
+  async function handleGenerateRecap() {
+    if (!appUserId) {
+      setRecapError("Not ready yet — try again in a moment.");
       return;
     }
-    Alert.alert("Coming soon", "AI campaign recap generation is on the way — check back in a future update.");
+    setRecapLoading(true);
+    setRecapError(null);
+    setRecapResult(null);
+    try {
+      const timeline = getCampaignTimeline(campaignId);
+      const text = await generateCampaignRecap(appUserId, {
+        campaignName: campaign?.name ?? "",
+        sessions: timeline.sessions,
+        notes: timeline.notes.map((n) => ({ title: n.title, content: n.content })),
+      });
+      setRecapResult(text);
+    } catch (error) {
+      setRecapError(error instanceof Error ? error.message : "Recap generation failed.");
+    } finally {
+      setRecapLoading(false);
+    }
+  }
+
+  function handleSaveRecap() {
+    if (!campaign || !recapResult) return;
+    const notes = campaign.notes ? `${campaign.notes}\n\n---\n\n${recapResult}` : recapResult;
+    updateCampaign(campaignId, campaign.name, notes);
+    setRecapResult(null);
+    refresh();
   }
 
   const showingResults = debouncedQuery.trim().length > 0;
@@ -123,25 +156,37 @@ export default function CampaignOverviewScreen() {
                 </View>
               )}
 
-              <Pressable
-                onPress={handleGenerateRecap}
-                className="flex-row items-center gap-3 rounded-2xl border border-accent/40 bg-accent-soft px-4 py-3.5"
-              >
-                <AppIcon name="sparkles" size={20} color={Colors.accentBright} />
-                <View className="flex-1">
-                  <Text className="text-sm font-bold text-foreground">Generate Campaign Recap</Text>
-                  <Text className="mt-0.5 text-xs text-muted">
-                    {isPremium ? "AI-written story-so-far from your sessions" : "Premium feature — tap to upgrade"}
-                  </Text>
-                </View>
-                {!isPremium && (
-                  <View className="rounded-full border border-accent/30 bg-panel px-2 py-0.5">
-                    <Text className="text-[10px] font-bold uppercase tracking-wide text-accent-bright">
-                      Premium
+              <View className="rounded-2xl border border-accent/40 bg-accent-soft px-4 py-3.5">
+                <View className="flex-row items-center gap-3">
+                  <AppIcon name="sparkles" size={20} color={Colors.accentBright} />
+                  <View className="flex-1">
+                    <Text className="text-sm font-bold text-foreground">Campaign Recap</Text>
+                    <Text className="mt-0.5 text-xs text-muted">
+                      {isPremium ? "AI-written story-so-far from your sessions" : "Premium feature"}
                     </Text>
                   </View>
+                  <LockedAiButton
+                    isPremium={isPremium}
+                    loading={recapLoading}
+                    label="Generate"
+                    onPress={handleGenerateRecap}
+                  />
+                </View>
+                {recapError && <Text className="mt-2 text-xs text-red-400">{recapError}</Text>}
+                {recapResult && (
+                  <View className="mt-3 gap-3 border-t border-accent/20 pt-3">
+                    <Text className="text-sm leading-5 text-foreground/90">{recapResult}</Text>
+                    <View className="flex-row items-center gap-4">
+                      <View className="flex-1">
+                        <PrimaryButton label="Save to Campaign Notes" icon="check" onPress={handleSaveRecap} />
+                      </View>
+                      <Pressable onPress={() => setRecapResult(null)} hitSlop={8}>
+                        <Text className="text-xs text-muted">Dismiss</Text>
+                      </Pressable>
+                    </View>
+                  </View>
                 )}
-              </Pressable>
+              </View>
 
               <View>
                 <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent/80">

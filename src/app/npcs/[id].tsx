@@ -10,6 +10,7 @@ import { PrimaryButton } from "@/components/primary-button";
 import { SaveToast } from "@/components/save-toast";
 import { Colors } from "@/constants/colors";
 import { AiNotConfiguredError } from "@/lib/ai";
+import { generateNpcDescriptionPremium, generateNpcNamePremium } from "@/lib/ai-premium";
 import {
   createNpcAppearance,
   deleteNpcAppearance,
@@ -20,6 +21,7 @@ import {
   type LocationSummary,
   type NpcAppearanceDetail,
 } from "@/lib/campaigns";
+import { useEntitlement } from "@/lib/entitlements";
 import { suggestNpcDescription, suggestNpcName } from "@/lib/npc-ai";
 import {
   createNpcRelation,
@@ -246,6 +248,7 @@ export default function NpcDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const isNew = id === "new";
   const navigation = useNavigation();
+  const { isPremium, appUserId } = useEntitlement();
 
   const [form, setForm] = useState<NpcInput>(BLANK_FORM);
   const [saving, setSaving] = useState(false);
@@ -311,7 +314,12 @@ export default function NpcDetailScreen() {
     setNameAiLoading(true);
     setNameAiError(null);
     try {
-      const name = await suggestNpcName({ race: form.race, role: form.role, location: form.location });
+      // Premium routes through the bundled backend (no key needed); free
+      // tier keeps using the BYO-key flow unchanged.
+      const name =
+        isPremium && appUserId
+          ? await generateNpcNamePremium(appUserId, { race: form.race, role: form.role, location: form.location })
+          : await suggestNpcName({ race: form.race, role: form.role, location: form.location });
       setForm((previous) => ({ ...previous, name }));
     } catch (error) {
       setNameAiError(
@@ -331,12 +339,9 @@ export default function NpcDetailScreen() {
     setDescAiLoading(true);
     setDescAiError(null);
     try {
-      const description = await suggestNpcDescription({
-        name: form.name,
-        race: form.race,
-        role: form.role,
-        location: form.location,
-      });
+      const details = { name: form.name, race: form.race, role: form.role, location: form.location };
+      const description =
+        isPremium && appUserId ? await generateNpcDescriptionPremium(appUserId, details) : await suggestNpcDescription(details);
       setForm((previous) => ({ ...previous, description }));
     } catch (error) {
       setDescAiError(
