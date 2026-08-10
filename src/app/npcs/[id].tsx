@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 
+import { AiError } from "@/components/ai-error";
 import { AppIcon } from "@/components/app-icon";
 import { DeleteButton, DeleteConfirmBar } from "@/components/delete-confirm-bar";
 import { FormField } from "@/components/form-field";
@@ -9,7 +10,6 @@ import { FormSection } from "@/components/form-section";
 import { PrimaryButton } from "@/components/primary-button";
 import { SaveToast } from "@/components/save-toast";
 import { Colors } from "@/constants/colors";
-import { AiNotConfiguredError } from "@/lib/ai";
 import {
   createNpcAppearance,
   deleteNpcAppearance,
@@ -132,20 +132,6 @@ function AiSuggestButton({ loading, disabled, onPress }: { loading: boolean; dis
   );
 }
 
-function AiError({ message }: { message: string }) {
-  const notConfigured = message.includes("Settings");
-  return (
-    <Text className="mt-1 text-sm text-red-400">
-      {message}{" "}
-      {notConfigured && (
-        <Text className="underline" onPress={() => router.push("/settings")}>
-          Go to Settings
-        </Text>
-      )}
-    </Text>
-  );
-}
-
 export default function NpcDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const isNew = id === "new";
@@ -212,13 +198,10 @@ export default function NpcDetailScreen() {
       const name = await suggestNpcName({ race: form.race, role: form.role, location: form.location });
       setForm((previous) => ({ ...previous, name }));
     } catch (error) {
-      setNameAiError(
-        error instanceof AiNotConfiguredError
-          ? "Add a Claude API key in Settings to use this."
-          : error instanceof Error
-            ? error.message
-            : "AI suggestion failed."
-      );
+      // AiNotConfiguredError extends Error and now carries its own correct,
+      // context-appropriate user-facing message (see ai.ts's callMessages) —
+      // no need to special-case it separately from a generic call failure.
+      setNameAiError(error instanceof Error ? error.message : "AI suggestion failed.");
     } finally {
       setNameAiLoading(false);
     }
@@ -237,13 +220,7 @@ export default function NpcDetailScreen() {
       });
       setForm((previous) => ({ ...previous, description }));
     } catch (error) {
-      setDescAiError(
-        error instanceof AiNotConfiguredError
-          ? "Add a Claude API key in Settings to use this."
-          : error instanceof Error
-            ? error.message
-            : "AI suggestion failed."
-      );
+      setDescAiError(error instanceof Error ? error.message : "AI suggestion failed.");
     } finally {
       setDescAiLoading(false);
     }

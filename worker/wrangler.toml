@@ -1,0 +1,33 @@
+name = "dm-assistant-mobile-worker"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# --- Tunable knobs -----------------------------------------------------
+# Plain vars (not secret) so they're trivial to find/change without
+# touching code — bump these and `wrangler deploy` (or edit in the
+# Cloudflare dashboard) rather than hunting through src/.
+[vars]
+RATE_LIMIT_MAX = 30
+RATE_LIMIT_WINDOW_SECONDS = 86400
+ALLOWED_MODEL = "claude-haiku-4-5-20251001"
+
+# --- Rate limit counter storage -----------------------------------------
+# Per-client-ID request counts for the 24h quota above, via Workers KV
+# (NOT Cloudflare's native Workers Rate Limiting binding — that binding's
+# `period` field is hard-capped at 10 or 60 seconds, so it cannot express
+# a 24h window at all; see docs/cloudflare-backend-plan.md for the note).
+#
+# `id`/`preview_id` below are placeholders — `wrangler dev` (local mode,
+# the default, no --remote flag) simulates KV locally and never validates
+# these against the real Cloudflare API, so local dev works as-is. Before
+# a REAL deploy, run `wrangler kv namespace create RATE_LIMIT_KV` and
+# replace both ids with the real namespace id it prints. (Deploy is a
+# human-user checkpoint per the plan doc — not done from here.)
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "REPLACE_BEFORE_DEPLOY_RATE_LIMIT_KV_ID"
+preview_id = "REPLACE_BEFORE_DEPLOY_RATE_LIMIT_KV_ID"
+
+# ANTHROPIC_API_KEY is a secret, deliberately not set here:
+#   local dev  -> worker/.dev.vars (gitignored; copy .dev.vars.example)
+#   deployed   -> `wrangler secret put ANTHROPIC_API_KEY` (human-user checkpoint)

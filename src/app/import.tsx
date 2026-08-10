@@ -10,14 +10,20 @@ import {
   View,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
-import * as LegacyFileSystem from "expo-file-system/legacy";
 
+import { AiError } from "@/components/ai-error";
 import { Colors } from "@/constants/colors";
 import { AiNotConfiguredError } from "@/lib/ai";
 import { createNpc } from "@/lib/npcs";
 import { createBestiaryMonster } from "@/lib/bestiary";
 import { createNote } from "@/lib/notes";
-import { extractFromPdfBase64, type ExtractedMonster, type ExtractedNpc, type ExtractedRule } from "@/lib/pdf-import";
+import {
+  extractFromPdf,
+  type ExtractedMonster,
+  type ExtractedNpc,
+  type ExtractedRule,
+  type PdfImportStage,
+} from "@/lib/pdf-import";
 
 type Stage = "idle" | "working" | "review" | "importing" | "done";
 
@@ -50,6 +56,7 @@ function SmallInput(props: React.ComponentProps<typeof TextInput> & { placeholde
 
 export default function ImportScreen() {
   const [stage, setStage] = useState<Stage>("idle");
+  const [uploadStage, setUploadStage] = useState<PdfImportStage>("uploading");
   const [error, setError] = useState<string | null>(null);
   const [truncated, setTruncated] = useState(false);
   const [sourceName, setSourceName] = useState("");
@@ -75,11 +82,9 @@ export default function ImportScreen() {
     }
 
     setStage("working");
+    setUploadStage("uploading");
     try {
-      const base64 = await LegacyFileSystem.readAsStringAsync(asset.uri, {
-        encoding: "base64",
-      });
-      const result = await extractFromPdfBase64(base64);
+      const result = await extractFromPdf(asset.uri, asset.name, setUploadStage);
       setSourceName(asset.name);
       setNpcs(withIncluded(result.npcs));
       setMonsters(withIncluded(result.monsters));
@@ -170,10 +175,12 @@ export default function ImportScreen() {
             </Pressable>
             {stage === "working" && (
               <Text className="mt-2 text-sm text-muted">
-                Reading document and extracting content — this can take a minute for longer PDFs.
+                {uploadStage === "uploading"
+                  ? "Uploading PDF…"
+                  : "Extracting content — this can take a minute for longer documents."}
               </Text>
             )}
-            {error && <Text className="mt-2 text-sm text-red-400">{error}</Text>}
+            {error && <AiError message={error} />}
           </View>
         )}
 

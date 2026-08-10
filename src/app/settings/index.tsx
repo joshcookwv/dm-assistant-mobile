@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { Linking, Pressable, ScrollView, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { router } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 
 import { DeleteConfirmBar } from "@/components/delete-confirm-bar";
 import { FormField } from "@/components/form-field";
+import { Colors } from "@/constants/colors";
 import { exportBackup, importBackup, type BackupCounts } from "@/lib/backup";
 import { deleteApiKey, getApiKey, setApiKey } from "@/lib/secure-settings";
+import { getUseSharedAi, setUseSharedAi } from "@/lib/settings";
 
 const SUPPORT_ISSUES_URL = "https://github.com/joshcookwv/dm-assistant-mobile-support/issues/new";
 
@@ -31,6 +33,9 @@ export default function SettingsScreen() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<TestStatus>("idle");
   const [testMessage, setTestMessage] = useState<string | null>(null);
+  // settings.ts is synchronous (SQLite), so a lazy initializer is enough —
+  // no loading state/useEffect needed, unlike the keychain-backed API key.
+  const [sharedAiEnabled, setSharedAiEnabled] = useState(() => getUseSharedAi());
 
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
@@ -67,6 +72,11 @@ export default function SettingsScreen() {
     setSaveMessage("Removed.");
     setTestStatus("idle");
     await refresh();
+  }
+
+  function handleToggleSharedAi(value: boolean) {
+    setUseSharedAi(value);
+    setSharedAiEnabled(value);
   }
 
   async function handleTest() {
@@ -225,6 +235,23 @@ export default function SettingsScreen() {
           Your key is stored in this device&apos;s secure keychain and is only ever sent directly to
           Anthropic&apos;s API.
         </Text>
+      </View>
+
+      <View className="mt-6 flex-row items-center gap-3 rounded-md border border-panel-border bg-panel p-4">
+        <View className="flex-1">
+          <Text className="text-xs font-semibold uppercase tracking-wide text-accent/80">
+            Use Free Shared AI
+          </Text>
+          <Text className="mt-2 text-sm text-foreground/80">
+            Uses a shared connection with a daily limit. Add your own API key above for unlimited use.
+          </Text>
+        </View>
+        <Switch
+          value={sharedAiEnabled}
+          onValueChange={handleToggleSharedAi}
+          trackColor={{ false: Colors.panelBorder, true: Colors.accent }}
+          thumbColor={Colors.foreground}
+        />
       </View>
 
       <View className="mt-6 rounded-md border border-panel-border bg-panel p-4">
