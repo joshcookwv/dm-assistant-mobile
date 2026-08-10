@@ -37,6 +37,27 @@ export class AiNotConfiguredError extends Error {
   }
 }
 
+/**
+ * Marks an Error's message as already vetted/user-facing — either one of
+ * this app's own deliberately-written strings (extractErrorMessage's
+ * cleaned-up HTTP error text, including the Worker's 429 copy) or the
+ * generic fallback below. callMessages/uploadFile catch anything NOT
+ * already one of these and replace it with that fallback instead of
+ * letting it reach the screen verbatim.
+ *
+ * Added after dm-reviewer's on-device PDF-import pass hit the
+ * pre-fix "Unsupported FormDataPart implementation" native error and it
+ * surfaced raw, character-for-character, in the UI — technically accurate
+ * but meaningless to a DM mid-session, who reads it as "the app is broken"
+ * rather than a specific, actionable failure. That exact bug is fixed
+ * (see uploadFile below), but the same passthrough would happen for *any*
+ * unanticipated failure — a native exception, a JSON parse failure, a raw
+ * network rejection reason — since none of those are written for an
+ * end-user to read. Not exported: callers only ever see `.message`,
+ * already guaranteed friendly by the time it gets there either way.
+ */
+class AiRequestError extends Error {}
+
 export async function isAiConfigured(): Promise<boolean> {
   return Boolean(await getApiKey()) || getUseSharedAi();
 }
@@ -124,32 +145,38 @@ export async function callMessages(params: MessagesParams, betas?: string[]): Pr
 
   const body = JSON.stringify({ model: AI_MODEL, ...params });
 
-  const res = apiKey
-    ? await fetch(ANTHROPIC_DIRECT_URL, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": ANTHROPIC_VERSION,
-          ...(betas?.length ? { "anthropic-beta": betas.join(",") } : {}),
-        },
-        body,
-      })
-    : await fetch(AI_PROXY_URL, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-client-id": await getClientId(),
-          ...(betas?.length ? { "anthropic-beta": betas.join(",") } : {}),
-        },
-        body,
-      });
+  try {
+    const res = apiKey
+      ? await fetch(ANTHROPIC_DIRECT_URL, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": ANTHROPIC_VERSION,
+            ...(betas?.length ? { "anthropic-beta": betas.join(",") } : {}),
+          },
+          body,
+        })
+      : await fetch(AI_PROXY_URL, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-client-id": await getClientId(),
+            ...(betas?.length ? { "anthropic-beta": betas.join(",") } : {}),
+          },
+          body,
+        });
 
-  const responseBody = await res.json();
-  if (!res.ok) {
-    throw new Error(extractErrorMessage(responseBody, res.status));
+    const responseBody = await res.json();
+    if (!res.ok) {
+      throw new AiRequestError(extractErrorMessage(responseBody, res.status));
+    }
+    return responseBody;
+  } catch (err) {
+    if (err instanceof AiRequestError) throw err;
+    console.error("[ai] callMessages failed:", err);
+    throw new AiRequestError("Couldn't reach Claude. Check your connection and try again.");
   }
-  return responseBody;
 }
 
 /**
@@ -214,22 +241,28 @@ export async function uploadFile(uri: string, filename: string, mimeType: string
       }
     : { "x-client-id": await getClientId() };
 
-  const { status, body: rawBody } = await new File(uri).upload(
-    apiKey ? ANTHROPIC_FILES_URL : AI_PROXY_FILES_URL,
-    {
-      httpMethod: "POST",
-      uploadType: UploadType.MULTIPART,
-      fieldName: "file",
-      mimeType,
-      headers,
-    }
-  );
+  try {
+    const { status, body: rawBody } = await new File(uri).upload(
+      apiKey ? ANTHROPIC_FILES_URL : AI_PROXY_FILES_URL,
+      {
+        httpMethod: "POST",
+        uploadType: UploadType.MULTIPART,
+        fieldName: "file",
+        mimeType,
+        headers,
+      }
+    );
 
-  const body = JSON.parse(rawBody);
-  if (status < 200 || status >= 300) {
-    throw new Error(extractErrorMessage(body, status));
+    const body = JSON.parse(rawBody);
+    if (status < 200 || status >= 300) {
+      throw new AiRequestError(extractErrorMessage(body, status));
+    }
+    return body.id;
+  } catch (err) {
+    if (err instanceof AiRequestError) throw err;
+    console.error("[ai] uploadFile failed:", err);
+    throw new AiRequestError("Couldn't upload that file. Check your connection and try again.");
   }
-  return body.id;
 }
 
 /**
