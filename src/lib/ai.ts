@@ -1,5 +1,3 @@
-import { File } from "expo-file-system";
-
 import { getApiKey } from "./secure-settings";
 import { getClientId } from "./client-id";
 import { getUseSharedAi } from "./settings";
@@ -198,49 +196,53 @@ export async function callMessages(params: MessagesParams, betas?: string[]): Pr
  * the picked file into FileSystem.CacheDirectory by default — so this is a
  * plain sandboxed file, not a raw content:// SAF URI).
  *
- * This has been through two broken approaches before landing here — both
- * left as history in case either resurfaces after a future SDK bump:
+ * This went through three broken approaches before landing here. Left as
+ * history in case any of it resurfaces after a future SDK bump — the real
+ * fix ended up being environmental (see .env), not anything in this
+ * function's own code, so it's worth knowing what's actually being worked
+ * around:
  *
- * 1. Plain `fetch` + `FormData` (RN's textbook file-upload idiom, and what
- *    callMessages still uses for its JSON-only calls). Threw "Unsupported
- *    FormDataPart implementation" on-device, before any network I/O, on
- *    both the direct and proxy branches equally. Root cause, traced
- *    through source: this Expo SDK installs its own WinterCG-compliant
- *    fetch globally (node_modules/expo/src/winter/fetch/), superseding RN
- *    core's classic bridge fetch app-wide. Its FormData interop shim
- *    (winter/fetch/convertFormData.ts) only recognizes RN FormData parts
- *    keyed `string`, `file`, or `blob` — but RN's own FormData.getParts()
- *    (Libraries/Network/FormData.js) spreads a `{uri, name, type}` value
- *    straight onto the part, so the resulting key is `uri`, silently
- *    converted to `undefined` by the shim and rejected by the type checks
- *    after it.
- * 2. expo-file-system's own `File.upload()` (native multipart, bypasses
- *    fetch/FormData entirely) — the fix for #1, and genuinely the right
- *    call in principle: same File API local-files.ts/srd.ts already use
- *    elsewhere. But it throws its own native-bridge error before any
- *    network I/O: "Value for headers cannot be cast from Double to
- *    ReadableNativeMap" inside FileSystemUploadTask.start. Traced through
- *    source: the Kotlin `UploadTaskOptions` record (expo-file-system's
- *    android/.../FileSystemUploadTask.kt) is annotated `@OptimizedRecord`,
- *    and declares fields in the order headers/httpMethod/uploadType/
- *    fieldName/mimeType/parameters — a *different* order than the JS-side
- *    `nativeOpts` object NetworkTasks.ts's UploadTask.uploadAsync()
- *    constructs internally (httpMethod/uploadType/headers/...). The only
- *    numeric (Double-typed) field either side has is `uploadType`, which
- *    is exactly the value the error reports landing in `headers`'s slot —
- *    consistent with some positional mismatch in however @OptimizedRecord
- *    deserializes on this installed expo-modules-core version. This isn't
- *    fixable from a call site: NetworkTasks.ts builds that object
- *    internally regardless of what shape is passed into .upload().
+ * 1. Plain `fetch` + `FormData` (RN's textbook file-upload idiom). Threw
+ *    "Unsupported FormDataPart implementation" before any network I/O.
+ *    Root cause: this Expo SDK installs its own WinterCG-compliant fetch
+ *    globally (node_modules/expo/src/winter/fetch/), and its FormData
+ *    interop shim (winter/fetch/convertFormData.ts) only recognizes RN
+ *    FormData parts keyed `string`, `file`, or `blob` — but RN's own
+ *    FormData.getParts() (Libraries/Network/FormData.js) spreads a
+ *    `{uri, name, type}` value straight onto the part, so the resulting
+ *    key is `uri`, silently converted to `undefined` by the shim.
+ * 2. expo-file-system's own `File.upload()` (native multipart, sidesteps
+ *    fetch/FormData entirely — the fix for #1, and the same File API
+ *    local-files.ts/srd.ts already use elsewhere). Threw its own
+ *    native-bridge error before any network I/O: "Value for headers
+ *    cannot be cast from Double to ReadableNativeMap" inside
+ *    FileSystemUploadTask.start. Root cause: the Kotlin `UploadTaskOptions`
+ *    record (expo-file-system's android/.../FileSystemUploadTask.kt,
+ *    annotated `@OptimizedRecord`) declares fields in a different order
+ *    than the JS-side object NetworkTasks.ts's UploadTask.uploadAsync()
+ *    builds internally — not fixable from a call site.
+ * 3. Hand-built multipart/form-data bytes sent as a raw Uint8Array fetch
+ *    body (sidesteps both #1 and #2 — no FormData, no UploadTask). Got
+ *    past both previous errors, but the Worker started reporting a missing
+ *    X-Client-Id header despite it being set — traced to this same Expo
+ *    fetch's *header* marshalling this time: `NativeRequestInit` (expo/
+ *    android/.../fetch/NativeRequestInit.kt) is also `@OptimizedRecord`,
+ *    and its `headers` field is a `List<Pair<String, String>>` — a type
+ *    that needs real conversion (not just a Map) crossing the bridge, and
+ *    only the last header pair was surviving the trip.
  *
- * Current approach: hand-build the multipart/form-data bytes and send them
- * as a plain Uint8Array fetch body. Confirmed via source
- * (winter/fetch/RequestUtils.ts's normalizeBodyInitAsync) that an
- * ArrayBufferView body is handled directly — converted straight to bytes
- * for the native request layer — without going through either of the two
- * broken paths above. The Worker's /v1/files handler already streams
- * whatever it receives through unparsed, so this needed no Worker-side
- * change, same as approach #2 didn't.
+ * Three bugs deep in the same newer fetch/expo-file-system native bridge
+ * layer was enough to stop trusting it rather than keep hand-patching
+ * around each new failure mode it finds. This Expo SDK ships an official
+ * escape hatch for exactly this: setting `EXPO_PUBLIC_USE_RN_FETCH=1`
+ * (see .env) skips installing the newer fetch entirely, leaving
+ * `globalThis.fetch` as RN core's own classic implementation — the one
+ * confirmed correct for our exact FormData shape while tracing #1
+ * (NetworkingModule.kt's constructMultipartBody handles the `uri`-keyed
+ * part directly). That let this go back to the simple, standard `fetch` +
+ * `FormData` idiom from #1 — the code below is that original approach,
+ * now actually working because the fetch underneath it changed, not
+ * because this function got cleverer.
  */
 export async function uploadFile(uri: string, filename: string, mimeType: string): Promise<string> {
   const apiKey = await getApiKey();
@@ -250,38 +252,26 @@ export async function uploadFile(uri: string, filename: string, mimeType: string
     );
   }
 
-  const headers: Record<string, string> = apiKey
-    ? {
-        "x-api-key": apiKey,
-        "anthropic-version": ANTHROPIC_VERSION,
-        "anthropic-beta": FILES_API_BETA,
-      }
-    : { "x-client-id": await getClientId() };
+  const form = new FormData();
+  form.append("file", { uri, name: filename, type: mimeType } as unknown as Blob);
 
   try {
-    const fileBytes = new Uint8Array(await new File(uri).arrayBuffer());
-
-    // Mirrors winter/fetch/convertFormData.ts's own createBoundary()/
-    // encodeFilename() conventions so this looks like nothing unusual to
-    // whatever parses it on the other end.
-    const boundary = `----dmAssistant${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
-    const encoder = new TextEncoder();
-    const head = encoder.encode(
-      `--${boundary}\r\n` +
-        `Content-Disposition: form-data; name="file"; filename="${encodeURIComponent(filename.replace(/\//g, "_"))}"\r\n` +
-        `Content-Type: ${mimeType}\r\n\r\n`
-    );
-    const tail = encoder.encode(`\r\n--${boundary}--\r\n`);
-    const multipartBody = new Uint8Array(head.length + fileBytes.length + tail.length);
-    multipartBody.set(head, 0);
-    multipartBody.set(fileBytes, head.length);
-    multipartBody.set(tail, head.length + fileBytes.length);
-
-    const res = await fetch(apiKey ? ANTHROPIC_FILES_URL : AI_PROXY_FILES_URL, {
-      method: "POST",
-      headers: { ...headers, "content-type": `multipart/form-data; boundary=${boundary}` },
-      body: multipartBody,
-    });
+    const res = apiKey
+      ? await fetch(ANTHROPIC_FILES_URL, {
+          method: "POST",
+          headers: {
+            "x-api-key": apiKey,
+            "anthropic-version": ANTHROPIC_VERSION,
+            "anthropic-beta": FILES_API_BETA,
+            // No content-type — fetch derives the multipart boundary from the FormData body itself.
+          },
+          body: form,
+        })
+      : await fetch(AI_PROXY_FILES_URL, {
+          method: "POST",
+          headers: { "x-client-id": await getClientId() },
+          body: form,
+        });
 
     const body = await res.json();
     if (!res.ok) {
