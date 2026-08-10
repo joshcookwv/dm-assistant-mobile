@@ -9,10 +9,10 @@ const ANTHROPIC_FILES_URL = "https://api.anthropic.com/v1/files";
 const ANTHROPIC_VERSION = "2023-06-01";
 
 // Files API is still beta — required on both the upload and any messages.create
-// call that references the resulting file_id. Uploads always go direct to
-// Anthropic with a personal key (see uploadFile below), so this header only
-// ever needs to reach the direct-fetch branch of callMessages, never the
-// proxy Worker branch.
+// call that references the resulting file_id. As of the 2026-08-09 "PDF
+// import too" doc update, uploads can go through either the direct-to-
+// Anthropic branch or the proxy Worker branch (see uploadFile below) — this
+// header is forwarded on both.
 export const FILES_API_BETA = "files-api-2025-04-14";
 
 /**
@@ -21,11 +21,12 @@ export const FILES_API_BETA = "files-api-2025-04-14";
  * machine's loopback via this special alias — plain "localhost" from
  * inside the emulator means the emulator itself, not the host running
  * `wrangler dev`. A physical device instead of the emulator would need
- * the host's LAN IP here instead. Swap this to the real deployed Worker
+ * the host's LAN IP here instead. Swap these to the real deployed Worker
  * URL only after the deploy checkpoint actually happens (see
- * docs/cloudflare-backend-plan.md) — single obvious constant, deliberately.
+ * docs/cloudflare-backend-plan.md) — single obvious constants, deliberately.
  */
 const AI_PROXY_URL = "http://10.0.2.2:8787/v1/messages";
+const AI_PROXY_FILES_URL = "http://10.0.2.2:8787/v1/files";
 
 export class AiNotConfiguredError extends Error {
   constructor(message: string = "No Claude API key configured yet. Add one in Settings.") {
@@ -102,13 +103,14 @@ function extractErrorMessage(body: any, status: number): string {
  *   surfaced the same way a real call failure would be.
  *
  * `betas` adds an anthropic-beta header (e.g. to reference a Files API
- * file_id in a document block) — only meaningful on the direct-to-Anthropic
- * branch, since a beta feature that needs it (see uploadFile below) always
- * requires a personal key in the first place, unconditionally — uploadFile
- * never consults the toggle at all, so this function's toggle check has no
- * effect on that path (uploadFile's own check always runs first and either
- * throws or guarantees apiKey is set before callMessages is ever reached
- * from extractFromPdf).
+ * file_id in a document block) — forwarded on both branches now. Before the
+ * 2026-08-09 "PDF import too" update this only ever needed to reach the
+ * direct branch, since uploadFile was personal-key-only and so the proxy
+ * branch here was never reached from extractFromPdf at all; now that
+ * uploadFile shares the same three-state logic, a no-key+toggle-on PDF
+ * import reaches this proxy branch needing the Files API beta too, so it's
+ * sent to the Worker the same way — the Worker itself allowlists which
+ * beta values it'll relay on to Anthropic (see worker/src/index.ts).
  */
 export async function callMessages(params: MessagesParams, betas?: string[]): Promise<any> {
   const apiKey = await getApiKey();
@@ -136,6 +138,7 @@ export async function callMessages(params: MessagesParams, betas?: string[]): Pr
         headers: {
           "content-type": "application/json",
           "x-client-id": await getClientId(),
+          ...(betas?.length ? { "anthropic-beta": betas.join(",") } : {}),
         },
         body,
       });
@@ -155,11 +158,12 @@ export async function callMessages(params: MessagesParams, betas?: string[]): Pr
  * base64 documents; and reading a large file into a base64 JS string
  * on-device is itself memory-heavy, independent of the wire limit.
  *
- * Always goes direct to Anthropic with a personal key — unlike callMessages,
- * there is no proxy-Worker fallback. A shared anonymous proxy accepting
- * arbitrary large file uploads on someone else's behalf is a cost/abuse
- * surface the proxy work hasn't taken on, so this intentionally doesn't
- * route through it even once the Worker is live.
+ * Same three-state branching as callMessages, as of the 2026-08-09 "PDF
+ * import too" doc update — previously this was unconditionally
+ * personal-key-only. Note this only changes Phase 1's temporary, open,
+ * must-not-ship-as-is toggle (see getUseSharedAi's doc comment); Addendum 2
+ * still means free (non-subscribed, post-launch) users get zero proxy
+ * access to this once Phase 2's real entitlement gate replaces the toggle.
  *
  * `uri` is a local file URI (e.g. from expo-document-picker) — RN's fetch/
  * FormData understands the {uri, name, type} shape natively and streams the
@@ -167,21 +171,31 @@ export async function callMessages(params: MessagesParams, betas?: string[]): Pr
  */
 export async function uploadFile(uri: string, filename: string, mimeType: string): Promise<string> {
   const apiKey = await getApiKey();
-  if (!apiKey) throw new AiNotConfiguredError();
+  if (!apiKey && !getUseSharedAi()) {
+    throw new AiNotConfiguredError(
+      "Add your own API key in Settings, or turn on Free Shared AI, to use this."
+    );
+  }
 
   const form = new FormData();
   form.append("file", { uri, name: filename, type: mimeType } as unknown as Blob);
 
-  const res = await fetch(ANTHROPIC_FILES_URL, {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": ANTHROPIC_VERSION,
-      "anthropic-beta": FILES_API_BETA,
-      // No content-type — fetch derives the multipart boundary from the FormData body itself.
-    },
-    body: form,
-  });
+  const res = apiKey
+    ? await fetch(ANTHROPIC_FILES_URL, {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": ANTHROPIC_VERSION,
+          "anthropic-beta": FILES_API_BETA,
+          // No content-type — fetch derives the multipart boundary from the FormData body itself.
+        },
+        body: form,
+      })
+    : await fetch(AI_PROXY_FILES_URL, {
+        method: "POST",
+        headers: { "x-client-id": await getClientId() },
+        body: form,
+      });
   const body = await res.json();
   if (!res.ok) {
     throw new Error(extractErrorMessage(body, res.status));
@@ -189,19 +203,36 @@ export async function uploadFile(uri: string, filename: string, mimeType: string
   return body.id;
 }
 
-/** Best-effort delete of a previously uploaded file. Never throws. */
+/**
+ * Best-effort delete of a previously uploaded file. Never throws.
+ *
+ * Re-derives the same apiKey/toggle branch uploadFile would have taken
+ * rather than remembering which path the matching upload used — in
+ * practice these are always called moments apart in the same operation
+ * (see pdf-import.ts's extractFromPdf), so the state can't realistically
+ * change in between. A file uploaded via the shared proxy can only be
+ * deleted via that same proxy (it belongs to the shared account, not
+ * whatever's read here), so this has to match, not just "have a key".
+ */
 export async function deleteFile(fileId: string): Promise<void> {
   const apiKey = await getApiKey();
-  if (!apiKey) return;
+  if (!apiKey && !getUseSharedAi()) return;
   try {
-    await fetch(`${ANTHROPIC_FILES_URL}/${fileId}`, {
-      method: "DELETE",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": ANTHROPIC_VERSION,
-        "anthropic-beta": FILES_API_BETA,
-      },
-    });
+    if (apiKey) {
+      await fetch(`${ANTHROPIC_FILES_URL}/${fileId}`, {
+        method: "DELETE",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": ANTHROPIC_VERSION,
+          "anthropic-beta": FILES_API_BETA,
+        },
+      });
+    } else {
+      await fetch(`${AI_PROXY_FILES_URL}/${fileId}`, {
+        method: "DELETE",
+        headers: { "x-client-id": await getClientId() },
+      });
+    }
   } catch {
     // Cleanup is opportunistic — a failed delete shouldn't surface as a
     // user-facing error when the extraction it was cleaning up after already

@@ -13,7 +13,6 @@ import * as DocumentPicker from "expo-document-picker";
 
 import { AiError } from "@/components/ai-error";
 import { Colors } from "@/constants/colors";
-import { AiNotConfiguredError } from "@/lib/ai";
 import { createNpc } from "@/lib/npcs";
 import { createBestiaryMonster } from "@/lib/bestiary";
 import { createNote } from "@/lib/notes";
@@ -92,18 +91,14 @@ export default function ImportScreen() {
       setTruncated(result.truncated);
       setStage("review");
     } catch (err) {
-      setError(
-        err instanceof AiNotConfiguredError
-          ? // Deliberately doesn't just say "add a key" — a DM who already
-            // turned on Free Shared AI for NPC suggestions and then hits an
-            // unqualified "not configured" message here reads it as broken,
-            // not as an intentional scope boundary (dm-reviewer's catch).
-            // Naming the toggle and explaining why preempts that.
-            "PDF import isn't included in Free Shared AI — it's a much larger request than other AI features. Add your own Claude API key in Settings to use it."
-          : err instanceof Error
-            ? err.message
-            : "Something went wrong reading that file."
-      );
+      // Per the 2026-08-09 "PDF import too" doc update, PDF import now
+      // shares the exact same three-state logic as NPC suggestions
+      // (uploadFile/callMessages in ai.ts), so the AiNotConfiguredError
+      // special-case that used to live here (explaining PDF import was
+      // excluded from Free Shared AI) no longer applies — it's included
+      // now, and the thrown error already carries the right message either
+      // way, same simplification as npcs/[id].tsx.
+      setError(err instanceof Error ? err.message : "Something went wrong reading that file.");
       setStage("idle");
     }
   }

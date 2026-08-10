@@ -6,11 +6,16 @@
  * requiring users to get their own. See docs/cloudflare-backend-plan.md
  * for the full architecture/rationale — this file implements that spec.
  *
- * Scope, deliberately: this proxies POST /v1/messages only, requires an
- * anonymous X-Client-Id header, rate-limits per client ID, pins the model
- * allowlist, and otherwise forwards the request/response essentially
- * unchanged. No prompt/response content is ever logged or persisted —
- * only an ephemeral per-client request counter (see checkRateLimit).
+ * Proxies two Anthropic endpoints: POST /v1/messages, and (as of the
+ * 2026-08-09 "PDF import too" update) file uploads/deletes at
+ * /v1/files[/:id], since PDF import now goes through this proxy as well.
+ * Both require an anonymous X-Client-Id header and draw from the SAME
+ * shared per-client rate limit (see gateRequest) — Josh's own words were
+ * "the rate limiter enabled across the board", so one upload counts the
+ * same as one message call rather than a heavier weighted cost. The model
+ * allowlist and beta-header allowlist bound cost/scope the same way.
+ * Nothing is ever logged/persisted beyond an ephemeral per-client request
+ * counter (see checkRateLimit).
  */
 
 export interface Env {
@@ -26,8 +31,15 @@ export interface Env {
 }
 
 const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_FILES_URL = "https://api.anthropic.com/v1/files";
 const ANTHROPIC_VERSION = "2023-06-01";
 const MAX_CLIENT_ID_LENGTH = 256;
+
+// The only beta features this app's proxy paths ever need. Allowlisted for
+// the same reason as the model below — an arbitrary client-supplied
+// anthropic-beta value could plausibly open up different cost/quota
+// behavior upstream, and bounded cost is the whole point of a shared key.
+const ALLOWED_BETAS = new Set(["files-api-2025-04-14"]);
 
 function corsHeaders(): Record<string, string> {
   // Native fetch from React Native isn't subject to browser CORS (see
@@ -36,9 +48,25 @@ function corsHeaders(): Record<string, string> {
   // since the proxy has no cookie/session auth for CORS to protect.
   return {
     "access-control-allow-origin": "*",
-    "access-control-allow-methods": "POST, GET, OPTIONS",
-    "access-control-allow-headers": "content-type, x-client-id",
+    "access-control-allow-methods": "POST, GET, DELETE, OPTIONS",
+    "access-control-allow-headers": "content-type, x-client-id, anthropic-beta",
   };
+}
+
+/**
+ * Reads and validates an incoming anthropic-beta header against the
+ * allowlist above. Returns `{ ok: false }` for a disallowed value so the
+ * caller can reject with a 400; returns `undefined` (not an error) when the
+ * header is simply absent, since not every call needs one.
+ */
+function checkBetaHeader(request: Request): { ok: true; value?: string } | { ok: false } {
+  const raw = request.headers.get("anthropic-beta");
+  if (!raw) return { ok: true, value: undefined };
+  const requested = raw.split(",").map((s) => s.trim());
+  if (requested.some((beta) => !ALLOWED_BETAS.has(beta))) {
+    return { ok: false };
+  }
+  return { ok: true, value: raw };
 }
 
 function jsonResponse(body: unknown, status: number, extraHeaders?: Record<string, string>): Response {
@@ -108,24 +136,85 @@ async function checkRateLimit(
   return { allowed: true, remaining: limit - count, resetAt: existing.resetAt };
 }
 
+type GateResult = { ok: true; clientId: string } | { ok: false; response: Response };
+
+/**
+ * Shared entry gate for every proxied endpoint (messages, file upload, file
+ * delete): validates X-Client-Id, confirms the server is actually
+ * configured, and only then spends a slot from the client's shared rate
+ * limit — same quota, same KV key (`ratelimit:${clientId}`), regardless of
+ * which endpoint is being called. Per the 2026-08-09 doc update, PDF import
+ * (file upload) draws from the exact same daily budget as message calls
+ * rather than a separate or weighted one — "the rate limiter enabled
+ * across the board", Josh's words.
+ *
+ * Order deliberately: client-id shape checks (free) -> misconfiguration
+ * (free, and checking it before the rate limit means a broken deploy never
+ * costs a client one of their 30 daily slots for a 500 that's not their
+ * fault) -> rate limit (only spent once we know the request could actually
+ * be attempted).
+ */
+async function gateRequest(request: Request, env: Env): Promise<GateResult> {
+  const clientId = request.headers.get("X-Client-Id")?.trim();
+  if (!clientId) {
+    return {
+      ok: false,
+      response: jsonResponse({ error: "missing_client_id", message: "X-Client-Id header is required." }, 400),
+    };
+  }
+  if (clientId.length > MAX_CLIENT_ID_LENGTH) {
+    return {
+      ok: false,
+      response: jsonResponse({ error: "invalid_client_id", message: "X-Client-Id header is invalid." }, 400),
+    };
+  }
+
+  if (!env.ANTHROPIC_API_KEY) {
+    return {
+      ok: false,
+      response: jsonResponse(
+        { error: "server_misconfigured", message: "AI proxy is not configured. Try again later." },
+        500
+      ),
+    };
+  }
+
+  const rl = await checkRateLimit(
+    env.RATE_LIMIT_KV,
+    clientId,
+    Number(env.RATE_LIMIT_MAX),
+    Number(env.RATE_LIMIT_WINDOW_SECONDS)
+  );
+  if (!rl.allowed) {
+    return {
+      ok: false,
+      response: jsonResponse(
+        {
+          error: "rate_limited",
+          message:
+            "Daily free AI limit reached. Try again tomorrow, or add your own API key in Settings for unlimited use.",
+        },
+        429,
+        { "retry-after": String(Math.max(1, Math.ceil((rl.resetAt - Date.now()) / 1000))) }
+      ),
+    };
+  }
+
+  return { ok: true, clientId };
+}
+
 async function handleMessages(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") {
     return jsonResponse({ error: "method_not_allowed", message: "Use POST." }, 405);
   }
 
-  // --- 1. Client ID (free — no KV read yet) ------------------------------
-  const clientId = request.headers.get("X-Client-Id")?.trim();
-  if (!clientId) {
-    return jsonResponse(
-      { error: "missing_client_id", message: "X-Client-Id header is required." },
-      400
-    );
-  }
-  if (clientId.length > MAX_CLIENT_ID_LENGTH) {
-    return jsonResponse({ error: "invalid_client_id", message: "X-Client-Id header is invalid." }, 400);
+  // --- 1. Beta header allowlist (free) -------------------------------------
+  const beta = checkBetaHeader(request);
+  if (!beta.ok) {
+    return jsonResponse({ error: "beta_not_allowed", message: "Requested anthropic-beta value isn't supported." }, 400);
   }
 
-  // --- 2. Parse + shape-validate body (free) ------------------------------
+  // --- 2. Parse + shape-validate body (free) -------------------------------
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
@@ -157,45 +246,11 @@ async function handleMessages(request: Request, env: Env): Promise<Response> {
   }
   body.model = env.ALLOWED_MODEL;
 
-  // --- 4. Server misconfiguration (check before spending the client's quota
-  //        — reconsidered from an earlier "rate-limit-first, gateway-style"
-  //        ordering after tester correctly pointed out it doesn't actually
-  //        buy anything here: neither ordering changes when the real cost —
-  //        the forward to Anthropic below — can happen, since both checks
-  //        gate it either way. So there's no cost/abuse benefit to going
-  //        rate-limit-first, but there IS a real fairness cost: a client
-  //        would burn one of its 30 daily slots on a 500 that's the
-  //        server's fault whenever the secret is missing/bad. Not worth it
-  //        for a benefit that doesn't exist.) -------------------------------
-  if (!env.ANTHROPIC_API_KEY) {
-    return jsonResponse(
-      { error: "server_misconfigured", message: "AI proxy is not configured. Try again later." },
-      500
-    );
-  }
+  // --- 4. Client ID / server health / shared rate limit --------------------
+  const gate = await gateRequest(request, env);
+  if (!gate.ok) return gate.response;
 
-  // --- 5. Rate limit (only now spend a slot — everything free/cheap to
-  //        check has already passed, and we know the server can actually
-  //        attempt the call) -------------------------------------------------
-  const rl = await checkRateLimit(
-    env.RATE_LIMIT_KV,
-    clientId,
-    Number(env.RATE_LIMIT_MAX),
-    Number(env.RATE_LIMIT_WINDOW_SECONDS)
-  );
-  if (!rl.allowed) {
-    return jsonResponse(
-      {
-        error: "rate_limited",
-        message:
-          "Daily free AI limit reached. Try again tomorrow, or add your own API key in Settings for unlimited use.",
-      },
-      429,
-      { "retry-after": String(Math.max(1, Math.ceil((rl.resetAt - Date.now()) / 1000))) }
-    );
-  }
-
-  // --- 6. Forward to Anthropic, return its response essentially unchanged -
+  // --- 5. Forward to Anthropic, return its response essentially unchanged -
   let upstream: Response;
   try {
     upstream = await fetch(ANTHROPIC_MESSAGES_URL, {
@@ -204,8 +259,105 @@ async function handleMessages(request: Request, env: Env): Promise<Response> {
         "content-type": "application/json",
         "x-api-key": env.ANTHROPIC_API_KEY,
         "anthropic-version": ANTHROPIC_VERSION,
+        ...(beta.value ? { "anthropic-beta": beta.value } : {}),
       },
       body: JSON.stringify(body),
+    });
+  } catch {
+    return jsonResponse({ error: "upstream_unreachable", message: "Couldn't reach the AI service. Try again." }, 502);
+  }
+
+  const responseBody = await upstream.text();
+  return new Response(responseBody, {
+    status: upstream.status,
+    headers: { "content-type": "application/json", ...corsHeaders() },
+  });
+}
+
+/**
+ * Proxies a PDF (or other document) upload to Anthropic's Files API. The
+ * multipart body is streamed straight through unparsed rather than
+ * re-serialized — same bytes, same boundary, no size limit imposed beyond
+ * whatever the platform/Anthropic already enforce. No file-type check here
+ * deliberately: the shared rate limit already bounds total upload volume
+ * per client the same way it bounds message calls, and parsing multipart
+ * just to inspect one field would mean buffering the whole file in memory
+ * instead of streaming it — a real cost for a check the quota already
+ * covers the abuse case for.
+ */
+async function handleFilesUpload(request: Request, env: Env): Promise<Response> {
+  if (request.method !== "POST") {
+    return jsonResponse({ error: "method_not_allowed", message: "Use POST." }, 405);
+  }
+
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().startsWith("multipart/form-data")) {
+    return jsonResponse(
+      { error: "invalid_request", message: "Request body must be multipart/form-data." },
+      400
+    );
+  }
+
+  const beta = checkBetaHeader(request);
+  if (!beta.ok) {
+    return jsonResponse({ error: "beta_not_allowed", message: "Requested anthropic-beta value isn't supported." }, 400);
+  }
+
+  const gate = await gateRequest(request, env);
+  if (!gate.ok) return gate.response;
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(ANTHROPIC_FILES_URL, {
+      method: "POST",
+      headers: {
+        "content-type": contentType, // preserves the multipart boundary
+        "x-api-key": env.ANTHROPIC_API_KEY,
+        "anthropic-version": ANTHROPIC_VERSION,
+        "anthropic-beta": beta.value ?? "files-api-2025-04-14",
+      },
+      body: request.body,
+      // Workers' fetch requires this when the request body is a stream.
+      duplex: "half",
+    } as RequestInit);
+  } catch {
+    return jsonResponse({ error: "upstream_unreachable", message: "Couldn't reach the AI service. Try again." }, 502);
+  }
+
+  const responseBody = await upstream.text();
+  return new Response(responseBody, {
+    status: upstream.status,
+    headers: { "content-type": "application/json", ...corsHeaders() },
+  });
+}
+
+/**
+ * Best-effort delete proxy so files uploaded through the shared key don't
+ * silently accumulate in the shared Anthropic account forever. Mirrors
+ * src/lib/ai.ts's deleteFile: the app only ever calls this after a
+ * successful extraction, cleaning up a file it just uploaded through this
+ * same proxy.
+ */
+async function handleFilesDelete(fileId: string, request: Request, env: Env): Promise<Response> {
+  if (request.method !== "DELETE") {
+    return jsonResponse({ error: "method_not_allowed", message: "Use DELETE." }, 405);
+  }
+  if (!fileId) {
+    return jsonResponse({ error: "invalid_request", message: "Missing file id." }, 400);
+  }
+
+  const gate = await gateRequest(request, env);
+  if (!gate.ok) return gate.response;
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${ANTHROPIC_FILES_URL}/${encodeURIComponent(fileId)}`, {
+      method: "DELETE",
+      headers: {
+        "x-api-key": env.ANTHROPIC_API_KEY,
+        "anthropic-version": ANTHROPIC_VERSION,
+        "anthropic-beta": "files-api-2025-04-14",
+      },
     });
   } catch {
     return jsonResponse({ error: "upstream_unreachable", message: "Couldn't reach the AI service. Try again." }, 502);
@@ -232,6 +384,16 @@ export default {
 
     if (url.pathname === "/v1/messages") {
       return handleMessages(request, env);
+    }
+
+    if (url.pathname === "/v1/files") {
+      return handleFilesUpload(request, env);
+    }
+
+    // Matches /v1/files/<id> for the delete-after-extraction cleanup call.
+    const filesDeleteMatch = url.pathname.match(/^\/v1\/files\/([^/]+)$/);
+    if (filesDeleteMatch) {
+      return handleFilesDelete(decodeURIComponent(filesDeleteMatch[1]), request, env);
     }
 
     return jsonResponse({ error: "not_found", message: "Unknown endpoint." }, 404);
