@@ -94,7 +94,12 @@ export default function ImportScreen() {
     } catch (err) {
       setError(
         err instanceof AiNotConfiguredError
-          ? "Add a Claude API key in Settings to use PDF import."
+          ? // Deliberately doesn't just say "add a key" — a DM who already
+            // turned on Free Shared AI for NPC suggestions and then hits an
+            // unqualified "not configured" message here reads it as broken,
+            // not as an intentional scope boundary (dm-reviewer's catch).
+            // Naming the toggle and explaining why preempts that.
+            "PDF import isn't included in Free Shared AI — it's a much larger request than other AI features. Add your own Claude API key in Settings to use it."
           : err instanceof Error
             ? err.message
             : "Something went wrong reading that file."
