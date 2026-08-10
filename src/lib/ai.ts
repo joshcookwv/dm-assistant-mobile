@@ -175,7 +175,7 @@ export async function callMessages(params: MessagesParams, betas?: string[]): Pr
   } catch (err) {
     if (err instanceof AiRequestError) throw err;
     console.error("[ai] callMessages failed:", err);
-    throw new AiRequestError("Couldn't reach Claude. Check your connection and try again.");
+    throw new AiRequestError("Couldn't reach Claude. Try again in a moment.");
   }
 }
 
@@ -291,7 +291,7 @@ export async function uploadFile(uri: string, filename: string, mimeType: string
   } catch (err) {
     if (err instanceof AiRequestError) throw err;
     console.error("[ai] uploadFile failed:", err);
-    throw new AiRequestError("Couldn't upload that file. Check your connection and try again.");
+    throw new AiRequestError("Couldn't upload that file. Try again in a moment.");
   }
 }
 
