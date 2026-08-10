@@ -1,3 +1,5 @@
+import { File, UploadType } from "expo-file-system";
+
 import { getApiKey } from "./secure-settings";
 import { getClientId } from "./client-id";
 import { getUseSharedAi } from "./settings";
@@ -165,9 +167,35 @@ export async function callMessages(params: MessagesParams, betas?: string[]): Pr
  * still means free (non-subscribed, post-launch) users get zero proxy
  * access to this once Phase 2's real entitlement gate replaces the toggle.
  *
- * `uri` is a local file URI (e.g. from expo-document-picker) — RN's fetch/
- * FormData understands the {uri, name, type} shape natively and streams the
- * file from disk at the native layer rather than loading it into JS first.
+ * `uri` is a local file URI (e.g. from expo-document-picker, which copies
+ * the picked file into FileSystem.CacheDirectory by default — so this is a
+ * plain sandboxed file, not a raw content:// SAF URI).
+ *
+ * Deliberately NOT plain `fetch` + `FormData` here (unlike callMessages)
+ * despite that being RN's textbook file-upload idiom — tester found it
+ * throws "Unsupported FormDataPart implementation" on-device, before any
+ * network I/O, on both the direct and proxy branches equally. Root cause,
+ * traced through source: this Expo SDK installs its own WinterCG-compliant
+ * fetch globally (node_modules/expo/src/winter/fetch/), which supersedes
+ * RN core's classic bridge fetch. Its FormData interop shim
+ * (winter/fetch/convertFormData.ts) only recognizes RN FormData parts keyed
+ * `string`, `file`, or `blob` — but RN's own FormData.getParts()
+ * (Libraries/Network/FormData.js) spreads a `{uri, name, type}` value
+ * straight onto the part, so the resulting key is `uri`, which that shim's
+ * mapping function silently returns `undefined` for. The per-entry loop
+ * then finds an entry matching none of its type checks and throws. Using
+ * expo-file-system's own File.upload() instead sidesteps fetch/FormData
+ * entirely — the multipart body is built natively, same as local-files.ts
+ * and srd.ts already use File for elsewhere in this app. The Worker's
+ * /v1/files handler streams the body through unparsed regardless of how
+ * it was built, so this needed no Worker-side change.
+ *
+ * One behavior difference from the old fetch/FormData version: the
+ * multipart part's filename is whatever the on-device cache file is
+ * actually named (expo-document-picker preserves the picked name in
+ * practice) rather than independently settable — UploadOptions has no
+ * separate filename field. Harmless here: Anthropic's Files API only needs
+ * correct bytes + mimeType for extraction, the filename isn't functional.
  */
 export async function uploadFile(uri: string, filename: string, mimeType: string): Promise<string> {
   const apiKey = await getApiKey();
@@ -176,29 +204,30 @@ export async function uploadFile(uri: string, filename: string, mimeType: string
       "Add your own API key in Settings, or turn on Free Shared AI, to use this."
     );
   }
+  void filename; // kept in the signature — see doc comment; extraction doesn't depend on it.
 
-  const form = new FormData();
-  form.append("file", { uri, name: filename, type: mimeType } as unknown as Blob);
+  const headers: Record<string, string> = apiKey
+    ? {
+        "x-api-key": apiKey,
+        "anthropic-version": ANTHROPIC_VERSION,
+        "anthropic-beta": FILES_API_BETA,
+      }
+    : { "x-client-id": await getClientId() };
 
-  const res = apiKey
-    ? await fetch(ANTHROPIC_FILES_URL, {
-        method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": ANTHROPIC_VERSION,
-          "anthropic-beta": FILES_API_BETA,
-          // No content-type — fetch derives the multipart boundary from the FormData body itself.
-        },
-        body: form,
-      })
-    : await fetch(AI_PROXY_FILES_URL, {
-        method: "POST",
-        headers: { "x-client-id": await getClientId() },
-        body: form,
-      });
-  const body = await res.json();
-  if (!res.ok) {
-    throw new Error(extractErrorMessage(body, res.status));
+  const { status, body: rawBody } = await new File(uri).upload(
+    apiKey ? ANTHROPIC_FILES_URL : AI_PROXY_FILES_URL,
+    {
+      httpMethod: "POST",
+      uploadType: UploadType.MULTIPART,
+      fieldName: "file",
+      mimeType,
+      headers,
+    }
+  );
+
+  const body = JSON.parse(rawBody);
+  if (status < 200 || status >= 300) {
+    throw new Error(extractErrorMessage(body, status));
   }
   return body.id;
 }
