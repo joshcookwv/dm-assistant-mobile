@@ -87,10 +87,10 @@ This is the authoritative release checklist. Check an item only after fresh evid
 
 ## GitHub Pages, privacy, and licensing
 
-- [x] GitHub Actions Pages workflow publishes only the static `site/` directory with least-privilege permissions. Evidence: `.github/workflows/pages.yml`, August 11, 2026; live deployment pending merge.
-- [ ] Support page is live at `https://joshcookwv.github.io/dm-assistant-mobile/`.
-- [ ] Privacy policy is live at `https://joshcookwv.github.io/dm-assistant-mobile/privacy/`.
-- [ ] Licensing page is live at `https://joshcookwv.github.io/dm-assistant-mobile/licenses/`.
+- [x] GitHub Actions Pages workflow publishes only the static `site/` directory with least-privilege permissions. Evidence: successful Pages deployment run `31466164940`, August 11, 2026.
+- [x] Support page is live at `https://joshcookwv.github.io/dm-assistant-mobile/`. Evidence: HTTPS request returned HTTP 200 with title `Infernal Codex`, August 11, 2026.
+- [x] Privacy policy is live at `https://joshcookwv.github.io/dm-assistant-mobile/privacy/`. Evidence: HTTPS request returned HTTP 200 with title `Privacy Policy · Infernal Codex`, August 11, 2026.
+- [x] Licensing page is live at `https://joshcookwv.github.io/dm-assistant-mobile/licenses/`. Evidence: HTTPS request returned HTTP 200 with title `SRD & Open Content Licenses · Infernal Codex`, August 11, 2026.
 - [x] Privacy policy accurately covers local campaign data; optional Cloudflare/Anthropic AI transmission; Anthropic standard API retention up to 30 days; 30-day reports; RevenueCat/Play purchase data; encryption; deletion; no ads; and no behavioral analytics. Evidence: `site/privacy/index.html` and legal-site test, August 11, 2026.
 - [x] Privacy policy and app identify the contact as `infernalbuldog@gmail.com`. Evidence: public site and Pro screen, August 11, 2026.
 - [x] Licensing page and in-app Legal screen contain complete OGL 1.0a sections 1–15, applicable Section 15 notices, SRD 5.1 and 5.2 CC-BY-4.0 attribution, other bundled CC sources, links, and the independence disclaimer. Evidence: `site/licenses/index.html`, `src/app/settings/legal.tsx`, and legal-site test, August 11, 2026.
