@@ -3,7 +3,9 @@ import {
   sendAnthropicMessage,
   uploadAnthropicPdf,
 } from "./anthropic";
+import { cleanupExpired } from "./cleanup";
 import { hashCustomerId } from "./identity";
+import { recordUsage, usageFromResponseBody } from "./metrics";
 import {
   completePdfJob,
   createPdfJob,
@@ -33,6 +35,7 @@ import {
   isConfiguredValue,
   verifyEntitlement,
 } from "./revenuecat";
+import { submitReport, validateReportInput } from "./reports";
 import type { CreditState } from "./types";
 
 const APP_USER_ID_HEADER = "x-revenuecat-app-user-id";
@@ -82,12 +85,42 @@ function errorResponse(
 }
 
 function requireAiConfiguration(env: Env): void {
-  if (!isConfiguredValue(env.ANTHROPIC_API_KEY) || !isConfiguredValue(env.USER_HASH_SECRET)) {
+  requireIdentityConfiguration(env);
+  if (!isConfiguredValue(env.ANTHROPIC_API_KEY)) {
     throw new RequestValidationError(
       "server_misconfigured",
       500,
       "AI service is not configured. Try again later."
     );
+  }
+}
+
+function requireIdentityConfiguration(env: Env): void {
+  if (!isConfiguredValue(env.USER_HASH_SECRET)) {
+    throw new RequestValidationError(
+      "server_misconfigured",
+      500,
+      "Customer identity service is not configured. Try again later."
+    );
+  }
+}
+
+async function recordUsageSafely(
+  env: Env,
+  feature: "standard" | "pdf_import",
+  responseBody: string | undefined,
+  error: boolean
+): Promise<void> {
+  try {
+    await recordUsage(
+      env.DB,
+      feature,
+      responseBody ? usageFromResponseBody(responseBody) : undefined,
+      error,
+      new Date()
+    );
+  } catch {
+    console.error(JSON.stringify({ event: "metrics_write_failed", feature }));
   }
 }
 
@@ -129,16 +162,19 @@ async function handleMessages(request: Request, env: Env): Promise<Response> {
   try {
     upstream = await sendAnthropicMessage(body, env);
   } catch {
+    await recordUsageSafely(env, "standard", undefined, true);
     await refundCredits(env.DB, reservation.reservationId);
     return upstreamError(await getCreditState(env.DB, userHash, new Date()));
   }
   if (!upstream.ok) {
     await upstream.body?.cancel();
+    await recordUsageSafely(env, "standard", undefined, true);
     await refundCredits(env.DB, reservation.reservationId);
     return upstreamError(await getCreditState(env.DB, userHash, new Date()));
   }
 
   const responseBody = await upstream.text();
+  await recordUsageSafely(env, "standard", responseBody, false);
   await completeReservation(env.DB, reservation.reservationId);
   return new Response(responseBody, {
     status: 200,
@@ -307,14 +343,17 @@ async function handlePdfExtraction(
   try {
     upstream = await sendAnthropicMessage(body, env, FILES_BETA);
   } catch {
+    await recordUsageSafely(env, "pdf_import", undefined, true);
     return upstreamError(await refundFailedPdfJob(env, jobId, userHash));
   }
   if (!upstream.ok) {
     await upstream.body?.cancel();
+    await recordUsageSafely(env, "pdf_import", undefined, true);
     return upstreamError(await refundFailedPdfJob(env, jobId, userHash));
   }
 
   const responseBody = await upstream.text();
+  await recordUsageSafely(env, "pdf_import", responseBody, false);
   await completePdfJob(env.DB, jobId, userHash);
   const credits = await getCreditState(env.DB, userHash, new Date());
   return new Response(responseBody, {
@@ -353,6 +392,37 @@ async function handlePdfDelete(
   return jsonResponse({ status: "deleted" }, 200, creditHeaders(credits));
 }
 
+async function handleReport(request: Request, env: Env): Promise<Response> {
+  if (request.method !== "POST") {
+    return jsonResponse({ error: "method_not_allowed", message: "Use POST." }, 405);
+  }
+  const report = validateReportInput(
+    await readBoundedJson(request, STANDARD_BODY_LIMIT_BYTES)
+  );
+  requireIdentityConfiguration(env);
+  const userHash = await authenticate(request, env);
+  const submitted = await submitReport(env.DB, userHash, report, new Date());
+  const credits = await getCreditState(env.DB, userHash, new Date());
+  if (!submitted.allowed || !submitted.reportId) {
+    return jsonResponse(
+      {
+        error: "report_limit_reached",
+        message: "Daily report limit reached.",
+        reportLimit: submitted.limit,
+        reportRemaining: submitted.remaining,
+        reportReset: submitted.resetAt,
+      },
+      429,
+      creditHeaders(credits)
+    );
+  }
+  return jsonResponse(
+    { reportId: submitted.reportId },
+    201,
+    creditHeaders(credits)
+  );
+}
+
 async function handlePdfRoute(
   request: Request,
   env: Env,
@@ -384,6 +454,7 @@ async function route(request: Request, env: Env): Promise<Response> {
   }
   if (url.pathname === "/v1/messages") return handleMessages(request, env);
   if (url.pathname === "/v1/pdf-jobs") return handleCreatePdfJob(request, env);
+  if (url.pathname === "/v1/reports") return handleReport(request, env);
 
   const pdfMatch = url.pathname.match(/^\/v1\/pdf-jobs\/([^/]+)\/(file|extract)$/);
   if (pdfMatch) {
@@ -418,5 +489,8 @@ export default {
         500
       );
     }
+  },
+  scheduled(_controller, env, ctx): void {
+    ctx.waitUntil(cleanupExpired(env.DB, new Date()));
   },
 } satisfies ExportedHandler<Env>;

@@ -48,11 +48,11 @@ This is the authoritative release checklist. Check an item only after fresh evid
 - [x] Daily credit reservation is atomic under concurrent requests. Evidence: 20 simultaneous D1 reservations yielded 10 allowed, 10 denied, and 10 stored credits, August 11, 2026.
 - [x] Standard AI costs 1 credit and is capped at 800 output tokens. Evidence: request validation and protected-route tests, August 11, 2026.
 - [x] PDF import is protected as one 5-credit job, capped at 25 MB and 8,192 output tokens. Evidence: PDF bounds, state, and full route-flow tests, August 11, 2026.
-- [ ] Validation, entitlement, health, report, cleanup, and unsuccessful upstream paths consume 0 credits.
+- [x] Validation, entitlement, health, report, cleanup, and unsuccessful upstream paths consume 0 credits. Evidence: route ordering plus validation, refund, reporting, and cleanup tests, August 11, 2026.
 - [x] Quota exhaustion returns HTTP 429 with remaining credits and UTC reset time. Evidence: protected message route test, August 11, 2026.
-- [ ] Unsupported models, beta headers, file blocks on standard messages, oversized bodies, and invalid request shapes are rejected before upstream work.
+- [x] Unsupported models, beta headers, file blocks on standard messages, oversized bodies, and invalid request shapes are rejected before upstream work. Evidence: bounded-validation and zero-upstream-call route tests, August 11, 2026.
 - [x] Worker logs contain no prompts, PDF contents, generated output, raw customer IDs, secrets, or reviewer credentials. Evidence: structured error logging contains method, route path, and error class only; verified in Worker source, August 11, 2026.
-- [x] Worker quota, identity, entitlement, message, and PDF tests and TypeScript pass. Evidence: 5 files/32 tests and both production/test TypeScript projects, August 11, 2026.
+- [x] Worker quota, identity, entitlement, message, PDF, report, metric, and cleanup tests and TypeScript pass. Evidence: 8 files/41 tests and both production/test TypeScript projects, August 11, 2026.
 - [x] Worker production dependency audit reports zero vulnerabilities. Evidence: `npm audit --omit=dev`, August 11, 2026.
 
 ## AI-output reporting and cost controls
@@ -60,9 +60,9 @@ This is the authoritative release checklist. Check an item only after fresh evid
 - [ ] Every generated NPC suggestion, campaign summary, session summary, and PDF staging output has an in-app report action.
 - [ ] Report modal shows the exact output, five categories, optional comment, and 30-day disclosure.
 - [ ] Report submission stays in the app and shows success or retryable error state.
-- [ ] Reports consume no AI credits and have a separate atomic limit of 10 reports per customer per UTC day.
-- [ ] D1 deletes reports after 30 days and removes obsolete operational rows on schedule.
-- [ ] Daily request/input-token/output-token/error metrics contain no customer identifier or content.
+- [x] Reports consume no AI credits and have a separate atomic limit of 10 reports per customer per UTC day. Evidence: 20 concurrent report attempts accept exactly 10; protected route remains at 10 AI credits, August 11, 2026.
+- [x] D1 deletes reports after 30 days and removes obsolete operational rows on schedule. Evidence: cleanup test plus Wrangler daily `0 5 * * *` cron, August 11, 2026.
+- [x] Daily request/input-token/output-token/error metrics contain no customer identifier or content. Evidence: aggregate metric schema and accumulation test, August 11, 2026.
 - [ ] Mobile app displays server-provided credits remaining and reset time; the server remains authoritative.
 - [x] Initial reduced allowance is verified in D1 as 10 daily credits, 1 per standard action, and 5 per PDF import. Evidence: `quota.test.ts`, August 11, 2026.
 

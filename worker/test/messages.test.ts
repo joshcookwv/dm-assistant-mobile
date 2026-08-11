@@ -102,6 +102,42 @@ describe("standard message validation", () => {
 describe("POST /v1/messages", () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it("rejects unsupported request capabilities before any upstream call", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const requests = [
+      messageRequest("preflight-model", { ...validBody, model: "claude-opus-5" }),
+      new Request("https://worker.test/v1/messages", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-revenuecat-app-user-id": "preflight-beta",
+          "anthropic-beta": "files-api-2025-04-14",
+        },
+        body: JSON.stringify(validBody),
+      }),
+      messageRequest("preflight-file", {
+        ...validBody,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "document", source: { type: "file", file_id: "file_123" } },
+            ],
+          },
+        ],
+      }),
+      messageRequest("preflight-shape", { model: validBody.model, max_tokens: 100 }),
+    ];
+
+    for (const request of requests) {
+      const response = await worker.fetch(request, env);
+      expect(response.status).toBe(400);
+      await response.body?.cancel();
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("uses the canonical customer hash and returns one-credit state", async () => {
     const rawCanonicalId = "$RCAnonymousID:route-canonical";
     vi.stubGlobal(

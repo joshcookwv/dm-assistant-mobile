@@ -19,6 +19,9 @@ database_name = "infernal-codex"
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 
+[triggers]
+crons = ["0 5 * * *"]
+
 # Secrets are never stored here:
 # - ANTHROPIC_API_KEY
 # - REVENUECAT_SECRET_API_KEY
