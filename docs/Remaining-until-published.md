@@ -99,7 +99,9 @@ This is the authoritative release checklist. Check an item only after fresh evid
 ## Production infrastructure and build
 
 - [x] Cloudflare D1 database is created in US jurisdiction and production migrations are applied. Evidence: live Cloudflare API schema query returned all six expected empty tables, the atomic PDF lifecycle migration, no foreign-key violations, and both migration filenames recorded in `d1_migrations`, August 11, 2026; database ID is recorded in `worker/wrangler.toml`.
-- [ ] Worker secrets `ANTHROPIC_API_KEY`, `REVENUECAT_SECRET_API_KEY`, and `USER_HASH_SECRET` are configured without being printed or written to disk.
+- [x] Worker secret `ANTHROPIC_API_KEY` is configured without being printed or written to the repository. Evidence: authenticated `wrangler secret list`, August 11, 2026.
+- [ ] Worker secret `REVENUECAT_SECRET_API_KEY` is configured without being printed or written to the repository.
+- [x] Worker secret `USER_HASH_SECRET` is a freshly generated 32-byte cryptographic value configured without being printed or written to disk. Evidence: compatible RNG overwrite followed by authenticated `wrangler secret list`, August 11, 2026.
 - [ ] Worker is deployed and `/health` returns status `ok`.
 - [ ] Unauthorized AI and report smoke tests are rejected and D1 contains no raw identifiers or prompt content.
 - [ ] Production public variables point to the deployed Worker and live RevenueCat configuration.
@@ -110,6 +112,7 @@ This is the authoritative release checklist. Check an item only after fresh evid
 
 ## Google Play Console setup
 
+- [x] Current Play Console setup baseline is audited. Evidence: dashboard reports 8 of 13 app-information/store-listing tasks complete; the five remaining tasks are privacy policy, sign-in details, target audience, Data Safety, and store listing, August 11, 2026.
 - [ ] Privacy policy task is complete using the live GitHub Pages URL.
 - [ ] App access task explains subscription restriction, no app login, Pro-screen route, and private reusable reviewer identifier.
 - [ ] Target audience selects only ages 16–17 and 18+ and states the app is not designed for children.
