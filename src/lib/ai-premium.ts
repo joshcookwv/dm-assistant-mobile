@@ -1,11 +1,5 @@
-import Constants from "expo-constants";
+import { cachedText, callMessages } from "./ai";
 
-/**
- * Client-side contract for the bundled-AI backend (server/). Mirrored, not
- * imported — that's a separate deployable package with its own runtime and
- * tsconfig — so keep these in sync with server/src/types.ts by hand when
- * either side changes.
- */
 export type GenerateRequestType =
   | "campaign_recap"
   | "session_summary"
@@ -63,67 +57,123 @@ export interface LinkSuggestion {
   reason: string;
 }
 
-interface GenerateResponseBody {
-  text?: string;
-  suggestions?: LinkSuggestion[];
+function messageText(message: any): string {
+  return message.content
+    .map((block: any) => (block.type === "text" ? block.text : ""))
+    .join("")
+    .trim();
 }
 
-export class AiProxyNotConfiguredError extends Error {
-  constructor() {
-    super("The bundled AI backend isn't set up yet.");
-    this.name = "AiProxyNotConfiguredError";
-  }
-}
-
-function proxyUrl(): string | undefined {
-  const extra = Constants.expoConfig?.extra as { aiProxyUrl?: string } | undefined;
-  return extra?.aiProxyUrl || undefined;
-}
-
-type GenerateContext =
-  | CampaignRecapContext
-  | SessionSummaryContext
-  | NpcNameContext
-  | NpcDescriptionContext
-  | LinkSuggestionsContext;
-
-async function generate(type: GenerateRequestType, appUserId: string, context: GenerateContext): Promise<GenerateResponseBody> {
-  const baseUrl = proxyUrl();
-  if (!baseUrl) throw new AiProxyNotConfiguredError();
-
-  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/generate`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ type, appUserId, context }),
+async function generateText(system: string, context: unknown, maxTokens = 700): Promise<string> {
+  const message = await callMessages({
+    max_tokens: maxTokens,
+    system: [cachedText(system)],
+    messages: [{ role: "user", content: JSON.stringify(context) }],
   });
-  const body = await res.json();
-  if (!res.ok) {
-    throw new Error((body as { error?: string })?.error ?? `Request failed (HTTP ${res.status})`);
-  }
-  return body as GenerateResponseBody;
+  return messageText(message);
 }
 
-export async function generateCampaignRecap(appUserId: string, context: CampaignRecapContext): Promise<string> {
-  const body = await generate("campaign_recap", appUserId, context);
-  return body.text ?? "";
+/**
+ * The legacy appUserId argument remains for call-site compatibility only.
+ * Identity is never put in the request body: callMessages derives the current
+ * RevenueCat ID and sends it in the entitlement-gated proxy header.
+ */
+export async function generateCampaignRecap(
+  _appUserId: string,
+  context: CampaignRecapContext,
+): Promise<string> {
+  return generateText(
+    "Write a concise campaign story-so-far from only the supplied timeline and notes. Preserve names and facts, highlight consequences and unresolved hooks, and do not invent details.",
+    context,
+  );
 }
 
-export async function generateSessionSummary(appUserId: string, context: SessionSummaryContext): Promise<string> {
-  const body = await generate("session_summary", appUserId, context);
-  return body.text ?? "";
+export async function generateSessionSummary(
+  _appUserId: string,
+  context: SessionSummaryContext,
+): Promise<string> {
+  return generateText(
+    "Write a concise tabletop session recap using only the supplied facts. Cover major events, decisions, consequences, discoveries, and unresolved hooks. Do not invent details.",
+    context,
+    600,
+  );
 }
 
-export async function generateNpcNamePremium(appUserId: string, context: NpcNameContext): Promise<string> {
-  const body = await generate("npc_name", appUserId, context);
-  return body.text ?? "";
+export async function generateNpcNamePremium(
+  _appUserId: string,
+  context: NpcNameContext,
+): Promise<string> {
+  return generateText("Return one fitting fantasy NPC name and nothing else.", context, 80);
 }
 
-export async function generateNpcDescriptionPremium(appUserId: string, context: NpcDescriptionContext): Promise<string> {
-  const body = await generate("npc_description", appUserId, context);
-  return body.text ?? "";
+export async function generateNpcDescriptionPremium(
+  _appUserId: string,
+  context: NpcDescriptionContext,
+): Promise<string> {
+  return generateText(
+    "Write a compact, game-ready NPC description using only the supplied facts. Include appearance, manner, motivation, and one usable hook without inventing campaign facts.",
+    context,
+    350,
+  );
 }
 
-export async function suggestLinks(appUserId: string, context: LinkSuggestionsContext): Promise<LinkSuggestion[]> {
-  const body = await generate("link_suggestions", appUserId, context);
-  return body.suggestions ?? [];
+const LINK_SUGGESTION_TOOL = {
+  name: "record_link_suggestions",
+  description: "Return only plausible links explicitly supported by the recap and known names.",
+  input_schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      suggestions: {
+        type: "array",
+        maxItems: 20,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            kind: { type: "string", enum: ["appearance", "relation"] },
+            npcName: { type: "string" },
+            locationName: { type: "string" },
+            relatedNpcName: { type: "string" },
+            relationType: { type: "string" },
+            reason: { type: "string" },
+          },
+          required: ["kind", "npcName", "reason"],
+        },
+      },
+    },
+    required: ["suggestions"],
+  },
+} as const;
+
+function validSuggestion(value: unknown): value is LinkSuggestion {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  if (item.kind !== "appearance" && item.kind !== "relation") return false;
+  if (typeof item.npcName !== "string" || typeof item.reason !== "string") return false;
+  if (item.kind === "appearance" && typeof item.locationName !== "string") return false;
+  if (item.kind === "relation" && typeof item.relatedNpcName !== "string") return false;
+  return true;
+}
+
+export async function suggestLinks(
+  _appUserId: string,
+  context: LinkSuggestionsContext,
+): Promise<LinkSuggestion[]> {
+  const message = await callMessages({
+    max_tokens: 800,
+    system: [
+      cachedText(
+        "Find NPC appearances at campaign locations and relationships between known NPCs that are explicitly supported by the recap. Use only exact names from the supplied known-name lists. Return no speculative links.",
+      ),
+    ],
+    tools: [LINK_SUGGESTION_TOOL],
+    tool_choice: { type: "tool", name: LINK_SUGGESTION_TOOL.name },
+    messages: [{ role: "user", content: JSON.stringify(context) }],
+  });
+  const toolUse = message.content.find(
+    (block: any) => block.type === "tool_use" && block.name === LINK_SUGGESTION_TOOL.name,
+  );
+  const suggestions = toolUse?.input?.suggestions;
+  return Array.isArray(suggestions) ? suggestions.filter(validSuggestion).slice(0, 20) : [];
 }

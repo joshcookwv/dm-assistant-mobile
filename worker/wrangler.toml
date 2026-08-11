@@ -1,0 +1,31 @@
+name = "dm-assistant-mobile-worker"
+main = "src/index.ts"
+compatibility_date = "2026-08-11"
+compatibility_flags = ["nodejs_compat"]
+
+# Nonsecret, intentionally bounded production controls.
+[vars]
+DAILY_CREDIT_LIMIT = 10
+STANDARD_CREDIT_COST = 1
+PDF_CREDIT_COST = 5
+ALLOWED_MODEL = "claude-haiku-4-5-20251001"
+REVENUECAT_ENTITLEMENT_ID = "REPLACE_BEFORE_DEPLOY"
+
+# Local tests use Miniflare with this binding. The UUID is the nonsecret
+# production D1 database identifier.
+[[d1_databases]]
+binding = "DB"
+database_name = "infernal-codex"
+database_id = "c1c0138a-5e9a-4538-a0ae-1ada8fff20b8"
+migrations_dir = "migrations"
+
+[triggers]
+crons = ["0 5 * * *"]
+
+# Secrets are never stored here:
+# - ANTHROPIC_API_KEY
+# - REVENUECAT_SECRET_API_KEY
+# - USER_HASH_SECRET (a random 32-byte keyed-hash secret)
+#
+# Local development uses worker/.dev.vars (gitignored). Production uses
+# `wrangler secret put <NAME>` or the Cloudflare secret API.

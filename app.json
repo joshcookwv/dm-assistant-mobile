@@ -21,10 +21,7 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "android.permission.RECORD_AUDIO"
-      ]
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
@@ -45,7 +42,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Choose map images to attach to your campaign."
+          "photosPermission": "Choose map images to attach to your campaign.",
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ],
       "expo-font",
@@ -62,12 +61,7 @@
       "router": {},
       "eas": {
         "projectId": "6cfa7ca0-a278-4be8-b725-24444702ec5e"
-      },
-      "revenueCat": {
-        "iosApiKey": "",
-        "androidApiKey": ""
-      },
-      "aiProxyUrl": ""
+      }
     }
   }
 }

@@ -22,7 +22,7 @@ const SLIDES: Slide[] = [
   {
     icon: "npcs",
     title: "NPCs & Notes",
-    body: "Track every NPC's name, role, and location, and keep searchable campaign notes. Stuck on a name or description? Tap Suggest for an AI-generated starting point.",
+    body: "Track every NPC's name, role, and location, and keep searchable campaign notes. Infernal Codex Pro can suggest NPC names and descriptions when you need a starting point.",
   },
   {
     icon: "monsters",
@@ -31,13 +31,13 @@ const SLIDES: Slide[] = [
   },
   {
     icon: "session",
-    title: "Session & Encounters",
-    body: "Stage PCs and monsters ahead of game night in Session, then pull the whole roster into Encounters for live initiative, HP, and condition tracking.",
+    title: "Campaign Sessions & Encounters",
+    body: "Keep a persistent party roster in each campaign, log session recaps, and pull PCs into encounters for live initiative, HP, and condition tracking.",
   },
   {
     icon: "settings",
     title: "You're set up",
-    body: "Add a Claude API key in Settings any time to unlock AI features — totally optional. Settings is also where you'll find backup/restore and this walkthrough again.",
+    body: "The free plan includes one campaign with no AI. Infernal Codex Pro unlocks unlimited campaigns and shared AI tools; Settings also has backup, restore, and this walkthrough.",
   },
 ];
 

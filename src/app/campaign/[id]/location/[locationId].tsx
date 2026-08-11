@@ -146,7 +146,7 @@ export default function CampaignLocationScreen() {
               Encounters here ({encounters.length})
             </Text>
             {encounters.length === 0 ? (
-              <Text className="text-sm leading-5 text-muted">Nothing's happened here yet.</Text>
+              <Text className="text-sm leading-5 text-muted">Nothing&apos;s happened here yet.</Text>
             ) : (
               <View className="gap-2">
                 {encounters.map((encounter) => (

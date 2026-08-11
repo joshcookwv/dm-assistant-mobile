@@ -32,8 +32,10 @@ yarn-error.*
 
 # local env files
 .env*.local
-server/.env
-server/.dev.vars
+
+# Cloudflare Worker (worker/) local dev — secrets and local KV/DO state
+.dev.vars
+.wrangler/
 
 # typescript
 *.tsbuildinfo
@@ -43,3 +45,7 @@ example
 # generated native folders
 /ios
 /android
+
+# Local Android/QA artifacts
+/builds/tmp/
+/docs/store-assets/feature-graphic1.jpg

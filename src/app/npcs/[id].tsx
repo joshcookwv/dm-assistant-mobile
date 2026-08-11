@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 
+import { AiError } from "@/components/ai-error";
+import { AiReportAction } from "@/components/ai-report-action";
 import { AppIcon } from "@/components/app-icon";
 import { DeleteButton, DeleteConfirmBar } from "@/components/delete-confirm-bar";
 import { FormField } from "@/components/form-field";
 import { FormSection } from "@/components/form-section";
 import { PrimaryButton } from "@/components/primary-button";
+import { ProAiButton } from "@/components/pro-ai-button";
 import { SaveToast } from "@/components/save-toast";
 import { Colors } from "@/constants/colors";
-import { AiNotConfiguredError } from "@/lib/ai";
-import { generateNpcDescriptionPremium, generateNpcNamePremium } from "@/lib/ai-premium";
 import {
   createNpcAppearance,
   deleteNpcAppearance,
@@ -21,8 +22,8 @@ import {
   type LocationSummary,
   type NpcAppearanceDetail,
 } from "@/lib/campaigns";
-import { useEntitlement } from "@/lib/entitlements";
 import { suggestNpcDescription, suggestNpcName } from "@/lib/npc-ai";
+import { AI_MODEL } from "@/lib/ai";
 import {
   createNpcRelation,
   deleteNpcRelation,
@@ -131,18 +132,23 @@ function RelationshipLogger({ npcId, onLogged }: { npcId: number; onLogged: () =
   const [notes, setNotes] = useState("");
 
   function handleOpen() {
-    setCandidates(listNpcs().filter((n) => n.id !== npcId));
+    setCandidates(listNpcs().filter((npc) => npc.id !== npcId));
     setOpen(true);
   }
 
   function handleQueryChange(next: string) {
     setQuery(next);
-    setCandidates(listNpcs(next).filter((n) => n.id !== npcId));
+    setCandidates(listNpcs(next).filter((npc) => npc.id !== npcId));
   }
 
   function handleSubmit() {
     if (!otherNpcId) return;
-    createNpcRelation({ npcId, relatedNpcId: otherNpcId, relationType: relationType.trim(), notes: notes.trim() });
+    createNpcRelation({
+      npcId,
+      relatedNpcId: otherNpcId,
+      relationType: relationType.trim(),
+      notes: notes.trim(),
+    });
     setOpen(false);
     setQuery("");
     setOtherNpcId(null);
@@ -168,7 +174,12 @@ function RelationshipLogger({ npcId, onLogged }: { npcId: number; onLogged: () =
           <FormField label="Find NPC" value={query} onChangeText={handleQueryChange} placeholder="Search by name..." />
           <View className="flex-row flex-wrap gap-2">
             {candidates.slice(0, 12).map((npc) => (
-              <Chip key={npc.id} label={npc.name} selected={otherNpcId === npc.id} onPress={() => setOtherNpcId(npc.id)} />
+              <Chip
+                key={npc.id}
+                label={npc.name}
+                selected={otherNpcId === npc.id}
+                onPress={() => setOtherNpcId(npc.id)}
+              />
             ))}
           </View>
           {otherNpcId && (
@@ -212,43 +223,10 @@ function RelationshipLogger({ npcId, onLogged }: { npcId: number; onLogged: () =
 
 const BLANK_FORM: NpcInput = { name: "", race: "", role: "", location: "", tags: "", description: "" };
 
-function AiSuggestButton({ loading, disabled, onPress }: { loading: boolean; disabled?: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={loading || disabled}
-      hitSlop={6}
-      className={`flex-row items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 ${loading || disabled ? "opacity-50" : ""}`}
-    >
-      {loading ? (
-        <ActivityIndicator size={12} color={Colors.accentBright} />
-      ) : (
-        <AppIcon name="sparkles" size={13} color={Colors.accentBright} />
-      )}
-      <Text className="text-xs font-semibold text-accent-bright">{loading ? "Thinking..." : "Suggest"}</Text>
-    </Pressable>
-  );
-}
-
-function AiError({ message }: { message: string }) {
-  const notConfigured = message.includes("Settings");
-  return (
-    <Text className="mt-1 text-sm text-red-400">
-      {message}{" "}
-      {notConfigured && (
-        <Text className="underline" onPress={() => router.push("/settings")}>
-          Go to Settings
-        </Text>
-      )}
-    </Text>
-  );
-}
-
 export default function NpcDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const isNew = id === "new";
   const navigation = useNavigation();
-  const { isPremium, appUserId } = useEntitlement();
 
   const [form, setForm] = useState<NpcInput>(BLANK_FORM);
   const [saving, setSaving] = useState(false);
@@ -258,6 +236,8 @@ export default function NpcDetailScreen() {
   const [nameAiError, setNameAiError] = useState<string | null>(null);
   const [descAiLoading, setDescAiLoading] = useState(false);
   const [descAiError, setDescAiError] = useState<string | null>(null);
+  const [generatedName, setGeneratedName] = useState<string | null>(null);
+  const [generatedDescription, setGeneratedDescription] = useState<string | null>(null);
   const [appearances, setAppearances] = useState<NpcAppearanceDetail[]>([]);
   const [relations, setRelations] = useState<NpcRelationDetail[]>([]);
 
@@ -273,19 +253,21 @@ export default function NpcDetailScreen() {
   useFocusEffect(refreshRelations);
 
   useEffect(() => {
-    if (isNew) {
-      setForm(BLANK_FORM);
-      navigation.setOptions({ title: "New NPC" });
-      return;
-    }
-    const npc = getNpc(Number(id));
-    if (!npc) {
-      Alert.alert("Not found", "This NPC no longer exists.");
-      router.back();
-      return;
-    }
-    setForm(npc);
-    navigation.setOptions({ title: npc.name });
+    const timeout = setTimeout(() => {
+      if (isNew) {
+        navigation.setOptions({ title: "New NPC" });
+        return;
+      }
+      const npc = getNpc(Number(id));
+      if (!npc) {
+        Alert.alert("Not found", "This NPC no longer exists.");
+        router.back();
+        return;
+      }
+      setForm(npc);
+      navigation.setOptions({ title: npc.name });
+    }, 0);
+    return () => clearTimeout(timeout);
   }, [id, isNew, navigation]);
 
   function handleSave() {
@@ -314,21 +296,14 @@ export default function NpcDetailScreen() {
     setNameAiLoading(true);
     setNameAiError(null);
     try {
-      // Premium routes through the bundled backend (no key needed); free
-      // tier keeps using the BYO-key flow unchanged.
-      const name =
-        isPremium && appUserId
-          ? await generateNpcNamePremium(appUserId, { race: form.race, role: form.role, location: form.location })
-          : await suggestNpcName({ race: form.race, role: form.role, location: form.location });
+      const name = await suggestNpcName({ race: form.race, role: form.role, location: form.location });
+      setGeneratedName(name);
       setForm((previous) => ({ ...previous, name }));
     } catch (error) {
-      setNameAiError(
-        error instanceof AiNotConfiguredError
-          ? "Add a Claude API key in Settings to use this."
-          : error instanceof Error
-            ? error.message
-            : "AI suggestion failed."
-      );
+      // AiNotConfiguredError extends Error and now carries its own correct,
+      // context-appropriate user-facing message (see ai.ts's callMessages) —
+      // no need to special-case it separately from a generic call failure.
+      setNameAiError(error instanceof Error ? error.message : "AI suggestion failed.");
     } finally {
       setNameAiLoading(false);
     }
@@ -339,18 +314,16 @@ export default function NpcDetailScreen() {
     setDescAiLoading(true);
     setDescAiError(null);
     try {
-      const details = { name: form.name, race: form.race, role: form.role, location: form.location };
-      const description =
-        isPremium && appUserId ? await generateNpcDescriptionPremium(appUserId, details) : await suggestNpcDescription(details);
+      const description = await suggestNpcDescription({
+        name: form.name,
+        race: form.race,
+        role: form.role,
+        location: form.location,
+      });
+      setGeneratedDescription(description);
       setForm((previous) => ({ ...previous, description }));
     } catch (error) {
-      setDescAiError(
-        error instanceof AiNotConfiguredError
-          ? "Add a Claude API key in Settings to use this."
-          : error instanceof Error
-            ? error.message
-            : "AI suggestion failed."
-      );
+      setDescAiError(error instanceof Error ? error.message : "AI suggestion failed.");
     } finally {
       setDescAiLoading(false);
     }
@@ -366,9 +339,14 @@ export default function NpcDetailScreen() {
               value={form.name}
               onChangeText={(name) => setForm({ ...form, name })}
               placeholder="Grimsby Ironhand"
-              labelRight={<AiSuggestButton loading={nameAiLoading} onPress={handleSuggestName} />}
+              labelRight={<ProAiButton label="Suggest" loading={nameAiLoading} onPress={handleSuggestName} />}
             />
             {nameAiError && <AiError message={nameAiError} />}
+            {generatedName && (
+              <View className="mt-2">
+                <AiReportAction output={generatedName} feature="npc" model={AI_MODEL} />
+              </View>
+            )}
           </View>
           <View className="flex-row gap-3">
             <View className="flex-1">
@@ -394,9 +372,14 @@ export default function NpcDetailScreen() {
               placeholder="Appearance, personality, motivations, secrets..."
               multiline
               className="min-h-44"
-              labelRight={<AiSuggestButton loading={descAiLoading} disabled={!form.name.trim()} onPress={handleSuggestDescription} />}
+              labelRight={<ProAiButton label="Suggest" loading={descAiLoading} disabled={!form.name.trim()} onPress={handleSuggestDescription} />}
             />
             {descAiError && <AiError message={descAiError} />}
+            {generatedDescription && (
+              <View className="mt-2">
+                <AiReportAction output={generatedDescription} feature="npc" model={AI_MODEL} />
+              </View>
+            )}
           </View>
         </FormSection>
 
@@ -450,9 +433,7 @@ export default function NpcDetailScreen() {
                       <Pressable onPress={() => router.push(`/npcs/${relation.otherNpcId}`)}>
                         <Text className="text-sm font-bold text-accent-bright">{relation.otherNpcName}</Text>
                       </Pressable>
-                      {!!relation.relationType && (
-                        <Text className="mt-0.5 text-xs text-muted">{relation.relationType}</Text>
-                      )}
+                      {!!relation.relationType && <Text className="mt-0.5 text-xs text-muted">{relation.relationType}</Text>}
                       {!!relation.notes && (
                         <Text className="mt-1 text-xs leading-4 text-foreground/80">{relation.notes}</Text>
                       )}

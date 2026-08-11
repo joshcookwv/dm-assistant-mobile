@@ -71,8 +71,8 @@ export interface CampaignPcInput {
   campaignId: number;
   name: string;
   classLevel?: string;
-  maxHp?: number;
-  ac?: number | null;
+  maxHp: number;
+  ac: number;
   notes?: string;
 }
 
@@ -125,8 +125,8 @@ export function createCampaignPc(input: CampaignPcInput): CampaignPc {
       input.campaignId,
       input.name,
       input.classLevel ?? "",
-      input.maxHp ?? 0,
-      input.ac ?? null,
+      input.maxHp,
+      input.ac,
       input.notes ?? ""
     );
   return getCampaignPc(result.lastInsertRowid as number)!;
@@ -138,7 +138,7 @@ export function updateCampaignPc(id: number, input: CampaignPcInput): CampaignPc
       `UPDATE campaign_pcs SET name = ?, class_level = ?, max_hp = ?, ac = ?, notes = ?, updated_at = datetime('now')
        WHERE id = ?`
     )
-    .run(input.name, input.classLevel ?? "", input.maxHp ?? 0, input.ac ?? null, input.notes ?? "", id);
+    .run(input.name, input.classLevel ?? "", input.maxHp, input.ac, input.notes ?? "", id);
   return getCampaignPc(id);
 }
 

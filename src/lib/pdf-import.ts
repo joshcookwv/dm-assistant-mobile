@@ -1,4 +1,9 @@
-import { cachedText, callMessages } from "./ai";
+import {
+  cachedText,
+  createPdfJob,
+  extractPdfJob,
+  uploadPdfJob,
+} from "./ai";
 import type { ExtractionResult } from "./pdf-extract-types";
 
 export type { ExtractedNpc, ExtractedMonster, ExtractedRule, ExtractionResult } from "./pdf-extract-types";
@@ -78,32 +83,43 @@ const EXTRACTION_TOOL = {
   },
 };
 
+export type PdfImportStage = "uploading" | "extracting";
+
 /**
  * Sends the whole PDF to Claude as a native document content block instead
  * of extracting text locally and chunking it (the web app's approach with
  * pdfjs-dist) — one call instead of upload-then-chunk-then-extract, and it
  * also handles scanned/image-only pages the old text-layer-only extraction
- * couldn't. Very large sourcebooks may still hit Anthropic's per-file
- * page/size limits or this call's max_tokens ceiling — `truncated` flags the
- * latter so the caller can tell the user the results may be incomplete.
+ * couldn't. Very large sourcebooks may still hit this call's max_tokens
+ * ceiling — `truncated` flags that so the caller can tell the user the
+ * results may be incomplete.
+ *
+ * The PDF is uploaded via the Files API and referenced by file_id rather
+ * than inlined as base64: base64 inflates size ~33%, so any raw PDF over
+ * ~24MB already exceeded the 32MB inline-request cap — a real limit for
+ * full sourcebook scans. The Files API's 500MB-per-file ceiling has enough
+ * headroom that this isn't a concern in practice.
+ *
+ * `onStageChange` lets the caller (the import screen) show upload progress
+ * separately from extraction progress — the two can take meaningfully
+ * different amounts of time depending on connection speed vs. document
+ * length.
  */
-export async function extractFromPdfBase64(
-  base64: string
+export async function extractFromPdf(
+  uri: string,
+  filename: string,
+  onStageChange?: (stage: PdfImportStage) => void
 ): Promise<ExtractionResult & { truncated: boolean }> {
-  const message = await callMessages({
-    max_tokens: 8192,
+  onStageChange?.("uploading");
+  const jobId = await createPdfJob();
+
+  await uploadPdfJob(jobId, uri, filename, "application/pdf");
+  onStageChange?.("extracting");
+  const message = await extractPdfJob(jobId, {
+    prompt: "Extract everything from this document.",
     system: [cachedText(EXTRACTION_SYSTEM_PROMPT)],
     tools: [EXTRACTION_TOOL],
     tool_choice: { type: "tool", name: EXTRACTION_TOOL_NAME },
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } },
-          { type: "text", text: "Extract everything from this document." },
-        ],
-      },
-    ],
   });
 
   const toolUse = message.content.find((block: any) => block.type === "tool_use");
@@ -114,4 +130,9 @@ export async function extractFromPdfBase64(
     rules: Array.isArray(input.rules) ? input.rules : [],
     truncated: message.stop_reason === "max_tokens",
   };
+  /* Worker terminal handling deletes the upstream file and retries failures.
+    // The file is only ever needed for this one extraction call — clean it
+    // up so repeated imports don't silently accumulate storage. Best-effort:
+    // a failed delete shouldn't mask the extraction's actual result/error.
+    Client-side deletion is intentionally not part of the reliability path. */
 }

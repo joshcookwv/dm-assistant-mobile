@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Privacy Policy for the Infernal Codex Android app.">
+    <title>Privacy Policy · Infernal Codex</title>
+    <link rel="stylesheet" href="../styles.css">
+  </head>
+  <body>
+    <header>
+      <nav class="shell nav" aria-label="Primary navigation">
+        <a class="brand" href="/dm-assistant-mobile/">Infernal Codex</a>
+        <div class="nav-links">
+          <a href="/dm-assistant-mobile/privacy/" aria-current="page">Privacy</a>
+          <a href="/dm-assistant-mobile/licenses/">Licenses</a>
+          <a href="https://github.com/joshcookwv/dm-assistant-mobile">Source</a>
+        </div>
+      </nav>
+    </header>
+    <main class="shell prose">
+      <p class="eyebrow">Legal</p>
+      <h1>Privacy Policy</h1>
+      <p class="meta">Effective and last updated: August 11, 2026</p>
+
+      <p>This policy explains how the Infernal Codex developer handles information in the Infernal Codex Android app. Questions and privacy requests may be sent to <a href="mailto:infernalbuldog@gmail.com">infernalbuldog@gmail.com</a>.</p>
+
+      <h2>Who the app is for</h2>
+      <p>Infernal Codex is intended for users in the age groups <strong>ages 16–17 and 18+</strong>. It is not designed for children under 16.</p>
+
+      <h2>Campaign data stored on your device</h2>
+      <p>Campaigns, NPCs, notes, encounters, maps, homebrew creatures, sessions, and preferences are stored locally on your device. Infernal Codex does not require an app account and does not provide cloud synchronization. If you export a backup, you choose where the backup file is sent or stored.</p>
+
+      <h2>Optional AI features</h2>
+      <p>AI processing happens only when you deliberately use an AI feature. The prompt and relevant campaign context, or a PDF you select for import, are sent encrypted in transit over HTTPS to an Infernal Codex service on <strong>Cloudflare</strong>, which forwards the request to <strong>Anthropic</strong>. The service checks subscription access and enforces per-user credits. Its application code does not store ordinary prompts, PDFs, or generated outputs in the Infernal Codex database.</p>
+      <p>For PDF import, the app requests deletion of the temporary Anthropic file after processing or cancellation. Under Anthropic's standard API policy, API inputs and outputs are automatically deleted <strong>within 30 days</strong>, except where different terms apply or retention is needed for usage-policy enforcement or legal compliance.</p>
+
+      <h2>AI output reports</h2>
+      <p>If you choose “Report AI output,” the app sends only the exact flagged output, the category you select, an optional comment, the feature and model, a timestamp, and a one-way hashed customer identifier. AI output reports are stored in Cloudflare D1 for <strong>30 days</strong> and then deleted. The original prompt is not included. Reports are limited per user to reduce abuse.</p>
+
+      <h2>Purchases and subscription access</h2>
+      <p>Payments are handled by <strong>Google Play</strong>. <strong>RevenueCat</strong> helps the app verify Pro subscription access and may process an anonymous app-user identifier, purchase and subscription information such as the Google Play purchase token, and limited technical device information. The developer does not receive your payment-card or bank details.</p>
+
+      <h2>Operational data and security</h2>
+      <p>The Cloudflare service keeps short-lived quota and job records so it can enforce the 10-credit daily allowance and complete or cancel AI jobs. Daily aggregate request, token, and error counts contain no prompt content or customer identifiers and are used to measure reliability and AI cost. Cloudflare encrypts D1 data at rest, and app-to-service information is encrypted in transit.</p>
+
+      <h2>How information is used and shared</h2>
+      <p>Information is used only to provide app features, verify purchases, secure the service, prevent abuse, respond to user-submitted reports, and measure aggregate service cost and reliability. Data is <strong>not sold</strong>. The app contains <strong>no advertising</strong> and uses <strong>no behavioral analytics</strong> or cross-app tracking.</p>
+
+      <h2>Your choices, deletion, and retention</h2>
+      <p>You control whether to use AI features, import a PDF, submit an AI output report, or export a backup. Deleting app records or <strong>uninstalling</strong> the app removes locally stored app data from the device, subject to Android or device backups outside the developer's control. Delete exported backup files from the location where you saved them.</p>
+      <p>To <strong>request deletion</strong> of an unexpired AI output report or seek help with RevenueCat-related records, email <a href="mailto:infernalbuldog@gmail.com">infernalbuldog@gmail.com</a>. Include the Anonymous purchase ID shown in Settings if available; do not send payment information. Anthropic's standard API data is automatically deleted within 30 days as described above.</p>
+
+      <h2>Changes to this policy</h2>
+      <p>This page will be updated if the app's data practices materially change. The date at the top identifies the latest version.</p>
+    </main>
+    <footer><div class="shell"><a href="/dm-assistant-mobile/">Back to Infernal Codex</a></div></footer>
+  </body>
+</html>

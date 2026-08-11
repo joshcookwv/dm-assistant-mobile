@@ -1,0 +1,211 @@
+export const STANDARD_BODY_LIMIT_BYTES = 256 * 1024;
+export const STANDARD_OUTPUT_TOKEN_LIMIT = 800;
+export const PDF_OUTPUT_TOKEN_LIMIT = 8192;
+export const ALLOWED_MODEL = "claude-haiku-4-5-20251001";
+export const FILES_BETA = "files-api-2025-04-14";
+export const MULTIPART_OVERHEAD_LIMIT_BYTES = 512 * 1024;
+
+export class RequestValidationError extends Error {
+  constructor(
+    readonly code: string,
+    readonly status: number,
+    message: string
+  ) {
+    super(message);
+    this.name = "RequestValidationError";
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function requireContentType(request: Request, expected: string): void {
+  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
+  const mediaType = contentType.split(";", 1)[0].trim();
+  if (mediaType !== expected) {
+    throw new RequestValidationError(
+      "unsupported_media_type",
+      415,
+      `Content-Type must be ${expected}.`
+    );
+  }
+}
+
+export function requireJsonContentType(request: Request): void {
+  requireContentType(request, "application/json");
+}
+
+export function requireMultipartContentType(request: Request): void {
+  requireContentType(request, "multipart/form-data");
+}
+
+export async function readBoundedBytes(
+  request: Request,
+  maxBytes: number
+): Promise<Uint8Array> {
+  const rawLength = request.headers.get("content-length");
+  if (rawLength !== null) {
+    const declaredLength = Number(rawLength);
+    if (!Number.isFinite(declaredLength) || declaredLength < 0) {
+      throw new RequestValidationError("invalid_length", 400, "Content-Length is invalid.");
+    }
+    if (declaredLength > maxBytes) {
+      throw new RequestValidationError("body_too_large", 413, "Request body is too large.");
+    }
+  }
+
+  if (!request.body) return new Uint8Array();
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new RequestValidationError("body_too_large", 413, "Request body is too large.");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+export async function readBoundedJson(request: Request, maxBytes: number): Promise<unknown> {
+  requireJsonContentType(request);
+  const bytes = await readBoundedBytes(request, maxBytes);
+  const text = new TextDecoder().decode(bytes);
+  if (bytes.byteLength > maxBytes) {
+    throw new RequestValidationError("body_too_large", 413, "Request body is too large.");
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new RequestValidationError("invalid_json", 400, "Request body must be valid JSON.");
+  }
+}
+
+export async function readBoundedFormData(
+  request: Request,
+  maxFileBytes: number
+): Promise<FormData> {
+  requireMultipartContentType(request);
+  const bytes = await readBoundedBytes(
+    request,
+    maxFileBytes + MULTIPART_OVERHEAD_LIMIT_BYTES
+  );
+  const boundedRequest = new Request(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body: bytes.buffer as ArrayBuffer,
+  });
+  return boundedRequest.formData();
+}
+
+export function validateBetaHeader(raw: string | null, allowFiles: boolean): string | undefined {
+  if (!raw) return undefined;
+  const values = raw.split(",").map((value) => value.trim()).filter(Boolean);
+  if (!allowFiles || values.length !== 1 || values[0] !== FILES_BETA) {
+    throw new RequestValidationError(
+      "beta_not_allowed",
+      400,
+      "Requested anthropic-beta value isn't supported."
+    );
+  }
+  return FILES_BETA;
+}
+
+function containsDocumentBlock(messages: unknown[]): boolean {
+  return messages.some((message) => {
+    if (!isRecord(message) || !Array.isArray(message.content)) return false;
+    return message.content.some((block) => {
+      if (!isRecord(block)) return false;
+      if (block.type === "document" || block.type === "file") return true;
+      return isRecord(block.source) && block.source.type === "file";
+    });
+  });
+}
+
+export function validateStandardRequest(body: unknown): Record<string, unknown> {
+  if (!isRecord(body) || !Array.isArray(body.messages) || body.messages.length === 0) {
+    throw new RequestValidationError(
+      "invalid_request",
+      400,
+      "Request body must include a messages array."
+    );
+  }
+  if (body.model !== undefined && body.model !== ALLOWED_MODEL) {
+    throw new RequestValidationError(
+      "model_not_allowed",
+      400,
+      `Only ${ALLOWED_MODEL} is available through the shared proxy.`
+    );
+  }
+  if (
+    !Number.isInteger(body.max_tokens) ||
+    (body.max_tokens as number) < 1 ||
+    (body.max_tokens as number) > STANDARD_OUTPUT_TOKEN_LIMIT
+  ) {
+    throw new RequestValidationError(
+      "token_limit_exceeded",
+      400,
+      `Standard AI output is limited to ${STANDARD_OUTPUT_TOKEN_LIMIT} tokens.`
+    );
+  }
+  if (containsDocumentBlock(body.messages)) {
+    throw new RequestValidationError(
+      "file_not_allowed",
+      400,
+      "Files and documents require the protected PDF job flow."
+    );
+  }
+  return { ...body, model: ALLOWED_MODEL };
+}
+
+export interface PdfExtractionRequest {
+  prompt: string;
+  system?: string | unknown[];
+  tools?: unknown[];
+  tool_choice?: Record<string, unknown>;
+}
+
+export function validatePdfExtractionRequest(body: unknown): PdfExtractionRequest {
+  if (!isRecord(body) || typeof body.prompt !== "string" || !body.prompt.trim()) {
+    throw new RequestValidationError(
+      "invalid_request",
+      400,
+      "Request body must include a prompt."
+    );
+  }
+  if (
+    body.system !== undefined &&
+    typeof body.system !== "string" &&
+    !Array.isArray(body.system)
+  ) {
+    throw new RequestValidationError("invalid_request", 400, "System prompt is invalid.");
+  }
+  if (body.tools !== undefined && !Array.isArray(body.tools)) {
+    throw new RequestValidationError("invalid_request", 400, "Tool definitions are invalid.");
+  }
+  if (body.tool_choice !== undefined && !isRecord(body.tool_choice)) {
+    throw new RequestValidationError("invalid_request", 400, "Tool choice is invalid.");
+  }
+  return {
+    prompt: body.prompt,
+    ...(body.system !== undefined ? { system: body.system } : {}),
+    ...(body.tools !== undefined ? { tools: body.tools } : {}),
+    ...(body.tool_choice !== undefined ? { tool_choice: body.tool_choice } : {}),
+  };
+}

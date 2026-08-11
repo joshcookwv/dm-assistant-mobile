@@ -29,9 +29,11 @@ export default function MapDetailScreen() {
 
   useEffect(() => {
     if (isNew) {
-      setForm(BLANK_FORM);
-      navigation.setOptions({ title: "New Map" });
-      return;
+      const timeout = setTimeout(() => {
+        setForm(BLANK_FORM);
+        navigation.setOptions({ title: "New Map" });
+      }, 0);
+      return () => clearTimeout(timeout);
     }
     const map = getMap(Number(id));
     if (!map) {
@@ -39,9 +41,12 @@ export default function MapDetailScreen() {
       router.back();
       return;
     }
-    setForm(map);
-    setExistingFilePath(map.file_path);
-    navigation.setOptions({ title: map.name });
+    const timeout = setTimeout(() => {
+      setForm(map);
+      setExistingFilePath(map.file_path);
+      navigation.setOptions({ title: map.name });
+    }, 0);
+    return () => clearTimeout(timeout);
   }, [id, isNew, navigation]);
 
   async function handlePickImage() {

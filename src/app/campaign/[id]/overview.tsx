@@ -3,12 +3,14 @@ import { FlatList, Pressable, Text, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
 import { AppIcon, type AppIconName } from "@/components/app-icon";
+import { AiReportAction } from "@/components/ai-report-action";
 import { EntityListEmpty, EntityListItem } from "@/components/entity-list-item";
-import { LockedAiButton } from "@/components/locked-ai-button";
 import { PrimaryButton } from "@/components/primary-button";
+import { ProAiButton } from "@/components/pro-ai-button";
 import { SearchBar } from "@/components/search-bar";
 import { Colors } from "@/constants/colors";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { AI_MODEL } from "@/lib/ai";
 import { generateCampaignRecap } from "@/lib/ai-premium";
 import {
   getCampaignOverviewStats,
@@ -18,7 +20,7 @@ import {
   type CampaignSearchResult,
 } from "@/lib/campaign-intelligence";
 import { getCampaign, listCampaignSessions, updateCampaign, type Campaign, type CampaignSession } from "@/lib/campaigns";
-import { useEntitlement } from "@/lib/entitlements";
+import { useProAccess } from "@/providers/pro-access";
 
 const RESULT_BADGES: Record<CampaignSearchResult["type"], string> = {
   npc: "NPC",
@@ -46,7 +48,7 @@ function StatTile({ label, value }: { label: string; value: number }) {
 export default function CampaignOverviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const campaignId = Number(id);
-  const { isPremium, appUserId } = useEntitlement();
+  const { isPro, appUserId } = useProAccess();
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [stats, setStats] = useState<CampaignOverviewStats | null>(null);
@@ -162,11 +164,10 @@ export default function CampaignOverviewScreen() {
                   <View className="flex-1">
                     <Text className="text-sm font-bold text-foreground">Campaign Recap</Text>
                     <Text className="mt-0.5 text-xs text-muted">
-                      {isPremium ? "AI-written story-so-far from your sessions" : "Premium feature"}
+                      {isPro ? "AI-written story-so-far from your sessions" : "Infernal Codex Pro feature"}
                     </Text>
                   </View>
-                  <LockedAiButton
-                    isPremium={isPremium}
+                  <ProAiButton
                     loading={recapLoading}
                     label="Generate"
                     onPress={handleGenerateRecap}
@@ -176,6 +177,7 @@ export default function CampaignOverviewScreen() {
                 {recapResult && (
                   <View className="mt-3 gap-3 border-t border-accent/20 pt-3">
                     <Text className="text-sm leading-5 text-foreground/90">{recapResult}</Text>
+                    <AiReportAction output={recapResult} feature="campaign_summary" model={AI_MODEL} />
                     <View className="flex-row items-center gap-4">
                       <View className="flex-1">
                         <PrimaryButton label="Save to Campaign Notes" icon="check" onPress={handleSaveRecap} />

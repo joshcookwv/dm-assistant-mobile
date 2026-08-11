@@ -13,6 +13,7 @@ import {
   getCampaignPc,
   updateCampaignPc,
 } from "@/lib/campaigns";
+import { validateCampaignPc } from "@/lib/campaign-validation";
 
 interface FormState {
   name: string;
@@ -35,37 +36,49 @@ export default function CampaignPcScreen() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
-    if (isNew) {
-      setForm(BLANK_FORM);
-      navigation.setOptions({ title: "Add PC" });
-      return;
-    }
-    const pc = getCampaignPc(Number(pcId));
-    if (!pc) {
-      Alert.alert("Not found", "This PC no longer exists.");
-      router.back();
-      return;
-    }
-    setForm({
-      name: pc.name,
-      classLevel: pc.classLevel,
-      maxHp: String(pc.maxHp),
-      ac: pc.ac === null ? "" : String(pc.ac),
-      notes: pc.notes,
-    });
-    navigation.setOptions({ title: pc.name });
+    const timeout = setTimeout(() => {
+      if (isNew) {
+        navigation.setOptions({ title: "Add PC" });
+        return;
+      }
+      const pc = getCampaignPc(Number(pcId));
+      if (!pc) {
+        Alert.alert("Not found", "This PC no longer exists.");
+        router.back();
+        return;
+      }
+      setForm({
+        name: pc.name,
+        classLevel: pc.classLevel,
+        maxHp: String(pc.maxHp),
+        ac: pc.ac === null ? "" : String(pc.ac),
+        notes: pc.notes,
+      });
+      navigation.setOptions({ title: pc.name });
+    }, 0);
+    return () => clearTimeout(timeout);
   }, [pcId, isNew, navigation]);
 
   function handleSave() {
-    if (!form.name.trim()) return;
+    const validation = validateCampaignPc(form);
+    if (!validation.ok) {
+      if (!form.name.trim() || !form.maxHp.trim() || !form.ac.trim()) {
+        Alert.alert("Required fields", "Name, Max HP, and Armor Class are required.");
+      } else if (validation.field === "maxHp") {
+        Alert.alert("Invalid Max HP", "Max HP must be a whole number greater than zero.");
+      } else {
+        Alert.alert("Invalid Armor Class", "Armor Class must be a whole number of zero or greater.");
+      }
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
         campaignId,
         name: form.name.trim(),
         classLevel: form.classLevel.trim(),
-        maxHp: Number(form.maxHp) || 0,
-        ac: form.ac ? Number(form.ac) || 0 : null,
+        maxHp: validation.maxHp,
+        ac: validation.ac,
         notes: form.notes,
       };
       if (isNew) {
@@ -102,10 +115,10 @@ export default function CampaignPcScreen() {
         <FormSection title="Combat profile" description="Seeds the encounter tracker when this PC joins a fight." icon="encounters">
           <View className="flex-row gap-3">
             <View className="flex-1">
-              <FormField label="Max HP" value={form.maxHp} onChangeText={(maxHp) => setForm({ ...form, maxHp })} keyboardType="number-pad" placeholder="44" />
+              <FormField label="Max HP *" value={form.maxHp} onChangeText={(maxHp) => setForm({ ...form, maxHp })} keyboardType="number-pad" placeholder="44" />
             </View>
             <View className="flex-1">
-              <FormField label="Armor class" value={form.ac} onChangeText={(ac) => setForm({ ...form, ac })} keyboardType="number-pad" placeholder="17" />
+              <FormField label="Armor class *" value={form.ac} onChangeText={(ac) => setForm({ ...form, ac })} keyboardType="number-pad" placeholder="17" />
             </View>
           </View>
         </FormSection>
@@ -115,7 +128,12 @@ export default function CampaignPcScreen() {
         </FormSection>
 
         <View className="gap-3 pt-1">
-          <PrimaryButton label={saving ? "Saving..." : isNew ? "Add PC" : "Save changes"} icon="check" onPress={handleSave} disabled={saving || !form.name.trim()} />
+          <PrimaryButton
+            label={saving ? "Saving..." : isNew ? "Add PC" : "Save changes"}
+            icon="check"
+            onPress={handleSave}
+            disabled={saving || !form.name.trim() || !form.maxHp.trim() || !form.ac.trim()}
+          />
           {!isNew && !confirmingDelete && <DeleteButton label="Remove PC" onPress={() => setConfirmingDelete(true)} />}
         </View>
         {!isNew && confirmingDelete && <DeleteConfirmBar label="Remove this PC from the campaign?" onConfirm={handleDelete} onCancel={() => setConfirmingDelete(false)} />}

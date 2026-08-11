@@ -10,24 +10,38 @@ import {
   View,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
-import * as LegacyFileSystem from "expo-file-system/legacy";
 
+import { AiError } from "@/components/ai-error";
+import { AiReportAction } from "@/components/ai-report-action";
 import { Colors } from "@/constants/colors";
-import { AiNotConfiguredError } from "@/lib/ai";
+import { ProGateCard } from "@/components/pro-gate-card";
 import { createNpc } from "@/lib/npcs";
 import { createBestiaryMonster } from "@/lib/bestiary";
 import { createNote } from "@/lib/notes";
-import { extractFromPdfBase64, type ExtractedMonster, type ExtractedNpc, type ExtractedRule } from "@/lib/pdf-import";
+import {
+  extractFromPdf,
+  type ExtractedMonster,
+  type ExtractedNpc,
+  type ExtractedRule,
+  type PdfImportStage,
+} from "@/lib/pdf-import";
+import { useProAccess } from "@/providers/pro-access";
+import { AI_MODEL } from "@/lib/ai";
 
 type Stage = "idle" | "working" | "review" | "importing" | "done";
 
 interface Staged<T> {
   included: boolean;
   data: T;
+  generated: T;
 }
 
 function withIncluded<T>(items: T[]): Staged<T>[] {
-  return items.map((data) => ({ included: true, data }));
+  return items.map((data) => ({ included: true, data, generated: data }));
+}
+
+function reportablePdfOutput(value: unknown): string {
+  return JSON.stringify(value, null, 2);
 }
 
 function Checkbox({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {
@@ -49,7 +63,9 @@ function SmallInput(props: React.ComponentProps<typeof TextInput> & { placeholde
 }
 
 export default function ImportScreen() {
+  const { isPro, loading: accessLoading } = useProAccess();
   const [stage, setStage] = useState<Stage>("idle");
+  const [uploadStage, setUploadStage] = useState<PdfImportStage>("uploading");
   const [error, setError] = useState<string | null>(null);
   const [truncated, setTruncated] = useState(false);
   const [sourceName, setSourceName] = useState("");
@@ -75,11 +91,9 @@ export default function ImportScreen() {
     }
 
     setStage("working");
+    setUploadStage("uploading");
     try {
-      const base64 = await LegacyFileSystem.readAsStringAsync(asset.uri, {
-        encoding: "base64",
-      });
-      const result = await extractFromPdfBase64(base64);
+      const result = await extractFromPdf(asset.uri, asset.name, setUploadStage);
       setSourceName(asset.name);
       setNpcs(withIncluded(result.npcs));
       setMonsters(withIncluded(result.monsters));
@@ -87,13 +101,14 @@ export default function ImportScreen() {
       setTruncated(result.truncated);
       setStage("review");
     } catch (err) {
-      setError(
-        err instanceof AiNotConfiguredError
-          ? "Add a Claude API key in Settings to use PDF import."
-          : err instanceof Error
-            ? err.message
-            : "Something went wrong reading that file."
-      );
+      // Per the 2026-08-09 "PDF import too" doc update, PDF import now
+      // shares the exact same three-state logic as NPC suggestions
+      // (uploadFile/callMessages in ai.ts), so the AiNotConfiguredError
+      // special-case that used to live here (explaining PDF import was
+      // excluded from Free Shared AI) no longer applies — it's included
+      // now, and the thrown error already carries the right message either
+      // way, same simplification as npcs/[id].tsx.
+      setError(err instanceof Error ? err.message : "Something went wrong reading that file.");
       setStage("idle");
     }
   }
@@ -144,6 +159,30 @@ export default function ImportScreen() {
     setSummary(null);
   }
 
+  if (accessLoading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-background">
+        <ActivityIndicator color={Colors.accentBright} />
+        <Text className="mt-3 text-sm text-muted">Checking Pro access...</Text>
+      </View>
+    );
+  }
+
+  if (!isPro) {
+    return (
+      <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-4 p-4 pb-10">
+        <Text className="text-sm leading-5 text-muted">
+          Import a sourcebook or homebrew PDF, review the extracted NPCs, monsters, and rules, then
+          choose what to save.
+        </Text>
+        <ProGateCard
+          title="PDF import is a Pro feature"
+          description="Infernal Codex Pro securely sends the PDF through the shared AI proxy. Free-plan campaign data always stays on your device."
+        />
+      </ScrollView>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       className="flex-1 bg-background"
@@ -170,10 +209,12 @@ export default function ImportScreen() {
             </Pressable>
             {stage === "working" && (
               <Text className="mt-2 text-sm text-muted">
-                Reading document and extracting content — this can take a minute for longer PDFs.
+                {uploadStage === "uploading"
+                  ? "Uploading PDF…"
+                  : "Extracting content — this can take a minute for longer documents."}
               </Text>
             )}
-            {error && <Text className="mt-2 text-sm text-red-400">{error}</Text>}
+            {error && <AiError message={error} />}
           </View>
         )}
 
@@ -231,6 +272,13 @@ export default function ImportScreen() {
                     multiline
                     className="mt-2 rounded border border-panel-border bg-background px-2 py-1.5 text-xs text-foreground"
                   />
+                  <View className="mt-2">
+                    <AiReportAction
+                      output={reportablePdfOutput(item.generated)}
+                      feature="pdf_import"
+                      model={AI_MODEL}
+                    />
+                  </View>
                 </View>
               )}
             />
@@ -310,6 +358,13 @@ export default function ImportScreen() {
                     multiline
                     className="mt-2 rounded border border-panel-border bg-background px-2 py-1.5 font-mono text-xs text-foreground"
                   />
+                  <View className="mt-2">
+                    <AiReportAction
+                      output={reportablePdfOutput(item.generated)}
+                      feature="pdf_import"
+                      model={AI_MODEL}
+                    />
+                  </View>
                 </View>
               )}
             />
@@ -343,6 +398,13 @@ export default function ImportScreen() {
                     multiline
                     className="mt-2 rounded border border-panel-border bg-background px-2 py-1.5 text-xs text-foreground"
                   />
+                  <View className="mt-2">
+                    <AiReportAction
+                      output={reportablePdfOutput(item.generated)}
+                      feature="pdf_import"
+                      model={AI_MODEL}
+                    />
+                  </View>
                 </View>
               )}
             />

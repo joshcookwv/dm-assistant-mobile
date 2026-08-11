@@ -1,0 +1,308 @@
+import { env } from "cloudflare:workers";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import worker from "../src/index";
+import { hashCustomerId } from "../src/identity";
+import {
+  readBoundedJson,
+  validateBetaHeader,
+  validateStandardRequest,
+} from "../src/request-validation";
+
+const validBody = {
+  model: "claude-haiku-4-5-20251001",
+  max_tokens: 800,
+  messages: [{ role: "user", content: "Create a tavern keeper." }],
+};
+
+function activeCustomer(canonicalId: string): Response {
+  return Response.json({
+    subscriber: {
+      original_app_user_id: canonicalId,
+      entitlements: {
+        pro: {
+          expires_date: "2026-09-11T12:00:00Z",
+          grace_period_expires_date: null,
+        },
+      },
+    },
+  });
+}
+
+function messageRequest(appUserId: string, body: unknown = validBody): Request {
+  return new Request("https://worker.test/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-revenuecat-app-user-id": appUserId,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+describe("standard message validation", () => {
+  it("accepts the allowed model at the 800-token ceiling", () => {
+    expect(validateStandardRequest(validBody)).toEqual(validBody);
+  });
+
+  it("rejects an unsupported model", () => {
+    expect(() =>
+      validateStandardRequest({ ...validBody, model: "claude-opus-5" })
+    ).toThrowError(expect.objectContaining({ code: "model_not_allowed", status: 400 }));
+  });
+
+  it("rejects output above 800 tokens", () => {
+    expect(() =>
+      validateStandardRequest({ ...validBody, max_tokens: 801 })
+    ).toThrowError(expect.objectContaining({ code: "token_limit_exceeded", status: 400 }));
+  });
+
+  it("rejects document and file content blocks on the standard route", () => {
+    for (const sourceType of ["file", "base64"]) {
+      expect(() =>
+        validateStandardRequest({
+          ...validBody,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "document",
+                  source: { type: sourceType, file_id: "file_123", data: "pdf" },
+                },
+              ],
+            },
+          ],
+        })
+      ).toThrowError(expect.objectContaining({ code: "file_not_allowed", status: 400 }));
+    }
+  });
+
+  it("rejects beta headers on standard requests", () => {
+    expect(() => validateBetaHeader("files-api-2025-04-14", false)).toThrowError(
+      expect.objectContaining({ code: "beta_not_allowed", status: 400 })
+    );
+  });
+
+  it("rejects a JSON body larger than 256 KiB", async () => {
+    const body = JSON.stringify({ value: "x".repeat(256 * 1024) });
+    const request = new Request("https://worker.test/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    });
+
+    await expect(readBoundedJson(request, 256 * 1024)).rejects.toMatchObject({
+      code: "body_too_large",
+      status: 413,
+    });
+  });
+
+  it("stops reading a streaming JSON body once it crosses the limit", async () => {
+    const chunk = new Uint8Array(128 * 1024).fill(120);
+    let pulls = 0;
+    const request = new Request("https://worker.test/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: new ReadableStream({
+        pull(controller) {
+          pulls += 1;
+          controller.enqueue(chunk);
+          if (pulls === 3) controller.close();
+        },
+      }),
+    });
+
+    await expect(readBoundedJson(request, 256 * 1024)).rejects.toMatchObject({
+      code: "body_too_large",
+      status: 413,
+    });
+    expect(pulls).toBe(3);
+  });
+});
+
+describe("POST /v1/messages", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("rejects unsupported request capabilities before any upstream call", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const requests = [
+      messageRequest("preflight-model", { ...validBody, model: "claude-opus-5" }),
+      new Request("https://worker.test/v1/messages", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-revenuecat-app-user-id": "preflight-beta",
+          "anthropic-beta": "files-api-2025-04-14",
+        },
+        body: JSON.stringify(validBody),
+      }),
+      messageRequest("preflight-file", {
+        ...validBody,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "document", source: { type: "file", file_id: "file_123" } },
+            ],
+          },
+        ],
+      }),
+      messageRequest("preflight-shape", { model: validBody.model, max_tokens: 100 }),
+    ];
+
+    for (const request of requests) {
+      const response = await worker.fetch(request, env);
+      expect(response.status).toBe(400);
+      await response.body?.cancel();
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-JSON and JSON-prefix content types before authentication", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    for (const contentType of ["text/plain", "application/jsonx"]) {
+      const response = await worker.fetch(
+        new Request("https://worker.test/v1/messages", {
+          method: "POST",
+          headers: {
+            "content-type": contentType,
+            "x-revenuecat-app-user-id": "wrong-content-type",
+          },
+          body: JSON.stringify(validBody),
+        }),
+        env
+      );
+
+      expect(response.status).toBe(415);
+      await response.body?.cancel();
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("uses the canonical customer hash and returns one-credit state", async () => {
+    const rawCanonicalId = "$RCAnonymousID:route-canonical";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.startsWith("https://api.revenuecat.com/")) {
+          return activeCustomer(rawCanonicalId);
+        }
+        if (url === "https://api.anthropic.com/v1/messages") {
+          return Response.json({
+            id: "msg_1",
+            type: "message",
+            role: "assistant",
+            content: [{ type: "text", text: "Mara, keeper of the Ember Mug." }],
+            model: "claude-haiku-4-5-20251001",
+            stop_reason: "end_turn",
+            usage: { input_tokens: 20, output_tokens: 12 },
+          });
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      })
+    );
+
+    const response = await worker.fetch(messageRequest("alias-route-user"), env);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-ai-credits-limit")).toBe("10");
+    expect(response.headers.get("x-ai-credits-remaining")).toBe("9");
+    await expect(response.json()).resolves.toMatchObject({ id: "msg_1" });
+
+    const expectedHash = await hashCustomerId(rawCanonicalId, env.USER_HASH_SECRET);
+    const row = await env.DB.prepare(
+      "SELECT user_hash, credits_used FROM quota_usage WHERE user_hash = ?1"
+    )
+      .bind(expectedHash)
+      .first<{ user_hash: string; credits_used: number }>();
+    expect(row).toEqual({ user_hash: expectedHash, credits_used: 1 });
+    const rawRow = await env.DB.prepare(
+      "SELECT user_hash FROM quota_usage WHERE user_hash = ?1"
+    )
+      .bind(rawCanonicalId)
+      .first();
+    expect(rawRow).toBeNull();
+  });
+
+  it("refunds the reservation when Anthropic is unsuccessful", async () => {
+    const canonicalId = "$RCAnonymousID:upstream-failure";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.startsWith("https://api.revenuecat.com/")) return activeCustomer(canonicalId);
+        if (url === "https://api.anthropic.com/v1/messages") {
+          return Response.json({ error: { type: "overloaded_error" } }, { status: 529 });
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      })
+    );
+
+    const response = await worker.fetch(messageRequest("failure-alias"), env);
+    expect(response.status).toBe(502);
+    expect(response.headers.get("x-ai-credits-remaining")).toBe("10");
+    await response.body?.cancel();
+
+    const userHash = await hashCustomerId(canonicalId, env.USER_HASH_SECRET);
+    const usage = await env.DB.prepare(
+      "SELECT credits_used FROM quota_usage WHERE user_hash = ?1"
+    )
+      .bind(userHash)
+      .first<{ credits_used: number }>();
+    expect(usage?.credits_used).toBe(0);
+  });
+
+  it("refunds when a successful upstream response body cannot be read", async () => {
+    const canonicalId = "$RCAnonymousID:body-read-failure";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.startsWith("https://api.revenuecat.com/")) return activeCustomer(canonicalId);
+        if (url === "https://api.anthropic.com/v1/messages") {
+          return new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(new Error("upstream stream failed"));
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          );
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      })
+    );
+
+    const response = await worker.fetch(messageRequest("body-read-alias"), env);
+    expect(response.status).toBe(502);
+    expect(response.headers.get("x-ai-credits-remaining")).toBe("10");
+    await response.body?.cancel();
+  });
+
+  it("returns 429 with credit/reset headers before Anthropic", async () => {
+    const canonicalId = "$RCAnonymousID:route-quota";
+    const userHash = await hashCustomerId(canonicalId, env.USER_HASH_SECRET);
+    await env.DB.prepare(
+      `INSERT INTO quota_usage (user_hash, day_utc, credits_used, updated_at)
+       VALUES (?1, ?2, 10, ?3)`
+    )
+      .bind(userHash, new Date().toISOString().slice(0, 10), new Date().toISOString())
+      .run();
+    const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith("https://api.revenuecat.com/")) return activeCustomer(canonicalId);
+      throw new Error(`Anthropic must not be called: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await worker.fetch(messageRequest("quota-alias"), env);
+    expect(response.status).toBe(429);
+    expect(response.headers.get("x-ai-credits-remaining")).toBe("0");
+    expect(response.headers.get("x-ai-credits-reset")).toMatch(/T00:00:00\.000Z$/);
+    await response.body?.cancel();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
