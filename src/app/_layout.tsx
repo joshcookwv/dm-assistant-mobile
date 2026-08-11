@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import { Colors } from "@/constants/colors";
 import { drawerTarget } from "@/lib/drawer-navigation";
+import { AiCreditsProvider } from "@/providers/ai-credits";
 import { ProAccessProvider } from "@/providers/pro-access";
 
 function AppDrawerContent(props: DrawerContentComponentProps) {
@@ -93,7 +94,8 @@ function drawerIcon(name: AppIconName) {
 export default function RootLayout() {
   return (
     <ProAccessProvider>
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      <AiCreditsProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={["bottom"]}>
           <StatusBar style="light" />
           <Drawer
@@ -186,7 +188,8 @@ export default function RootLayout() {
         />
           </Drawer>
         </SafeAreaView>
-      </GestureHandlerRootView>
+        </GestureHandlerRootView>
+      </AiCreditsProvider>
     </ProAccessProvider>
   );
 }

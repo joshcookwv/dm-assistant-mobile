@@ -52,7 +52,7 @@ This is the authoritative release checklist. Check an item only after fresh evid
 - [x] Quota exhaustion returns HTTP 429 with remaining credits and UTC reset time. Evidence: protected message route test, August 11, 2026.
 - [x] Unsupported models, beta headers, file blocks on standard messages, oversized bodies, and invalid request shapes are rejected before upstream work. Evidence: bounded-validation and zero-upstream-call route tests, August 11, 2026.
 - [x] Worker logs contain no prompts, PDF contents, generated output, raw customer IDs, secrets, or reviewer credentials. Evidence: structured error logging contains method, route path, and error class only; verified in Worker source, August 11, 2026.
-- [x] Worker quota, identity, entitlement, message, PDF, report, metric, and cleanup tests and TypeScript pass. Evidence: 8 files/41 tests and both production/test TypeScript projects, August 11, 2026.
+- [x] Worker quota, identity, entitlement, message, PDF, report, metric, and cleanup tests and TypeScript pass. Evidence: 8 files/43 tests and both production/test TypeScript projects, August 11, 2026.
 - [x] Worker production dependency audit reports zero vulnerabilities. Evidence: `npm audit --omit=dev`, August 11, 2026.
 
 ## AI-output reporting and cost controls

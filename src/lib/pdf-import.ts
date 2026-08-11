@@ -1,4 +1,10 @@
-import { cachedText, callMessages, deleteFile, FILES_API_BETA, uploadFile } from "./ai";
+import {
+  cachedText,
+  createPdfJob,
+  deletePdfJob,
+  extractPdfJob,
+  uploadPdfJob,
+} from "./ai";
 import type { ExtractionResult } from "./pdf-extract-types";
 
 export type { ExtractedNpc, ExtractedMonster, ExtractedRule, ExtractionResult } from "./pdf-extract-types";
@@ -106,28 +112,17 @@ export async function extractFromPdf(
   onStageChange?: (stage: PdfImportStage) => void
 ): Promise<ExtractionResult & { truncated: boolean }> {
   onStageChange?.("uploading");
-  const fileId = await uploadFile(uri, filename, "application/pdf");
+  const jobId = await createPdfJob();
 
   try {
+    await uploadPdfJob(jobId, uri, filename, "application/pdf");
     onStageChange?.("extracting");
-    const message = await callMessages(
-      {
-        max_tokens: 8192,
-        system: [cachedText(EXTRACTION_SYSTEM_PROMPT)],
-        tools: [EXTRACTION_TOOL],
-        tool_choice: { type: "tool", name: EXTRACTION_TOOL_NAME },
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "document", source: { type: "file", file_id: fileId } },
-              { type: "text", text: "Extract everything from this document." },
-            ],
-          },
-        ],
-      },
-      [FILES_API_BETA]
-    );
+    const message = await extractPdfJob(jobId, {
+      prompt: "Extract everything from this document.",
+      system: [cachedText(EXTRACTION_SYSTEM_PROMPT)],
+      tools: [EXTRACTION_TOOL],
+      tool_choice: { type: "tool", name: EXTRACTION_TOOL_NAME },
+    });
 
     const toolUse = message.content.find((block: any) => block.type === "tool_use");
     const input = toolUse?.input ?? {};
@@ -141,6 +136,6 @@ export async function extractFromPdf(
     // The file is only ever needed for this one extraction call — clean it
     // up so repeated imports don't silently accumulate storage. Best-effort:
     // a failed delete shouldn't mask the extraction's actual result/error.
-    void deleteFile(fileId);
+    void deletePdfJob(jobId);
   }
 }

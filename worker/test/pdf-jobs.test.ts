@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import worker from "../src/index";
+import { hashCustomerId } from "../src/identity";
 import {
   completePdfJob,
   createPdfJob,
@@ -191,6 +192,86 @@ describe("protected PDF routes", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
+  it("refunds a created job when the client cancels before upload", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() => activeCustomer("$RCAnonymousID:cancel-created"))
+    );
+    const createResponse = await worker.fetch(
+      new Request("https://worker.test/v1/pdf-jobs", {
+        method: "POST",
+        headers: authHeaders("cancel-created-alias"),
+      }),
+      env
+    );
+    const created = await createResponse.json<{ jobId: string }>();
+    const deleteResponse = await worker.fetch(
+      new Request(`https://worker.test/v1/pdf-jobs/${created.jobId}/file`, {
+        method: "DELETE",
+        headers: authHeaders("cancel-created-alias"),
+      }),
+      env
+    );
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.headers.get("x-ai-credits-remaining")).toBe("10");
+    await deleteResponse.body?.cancel();
+  });
+
+  it("deletes an uploaded file and refunds when extraction never starts", async () => {
+    const canonicalId = "$RCAnonymousID:cancel-uploaded";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.startsWith("https://api.revenuecat.com/")) return activeCustomer(canonicalId);
+        if (url === "https://api.anthropic.com/v1/files" && init?.method === "POST") {
+          return Response.json({ id: "file_cancel_uploaded" });
+        }
+        if (
+          url === "https://api.anthropic.com/v1/files/file_cancel_uploaded" &&
+          init?.method === "DELETE"
+        ) {
+          return Response.json({ id: "file_cancel_uploaded", type: "file_deleted" });
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      })
+    );
+    const createResponse = await worker.fetch(
+      new Request("https://worker.test/v1/pdf-jobs", {
+        method: "POST",
+        headers: authHeaders("cancel-uploaded-alias"),
+      }),
+      env
+    );
+    const created = await createResponse.json<{ jobId: string }>();
+    const form = new FormData();
+    form.set("file", new File(["%PDF"], "cancel.pdf", { type: "application/pdf" }));
+    await worker.fetch(
+      new Request(`https://worker.test/v1/pdf-jobs/${created.jobId}/file`, {
+        method: "PUT",
+        headers: authHeaders("cancel-uploaded-alias"),
+        body: form,
+      }),
+      env
+    );
+    const deleteResponse = await worker.fetch(
+      new Request(`https://worker.test/v1/pdf-jobs/${created.jobId}/file`, {
+        method: "DELETE",
+        headers: authHeaders("cancel-uploaded-alias"),
+      }),
+      env
+    );
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.headers.get("x-ai-credits-remaining")).toBe("10");
+    await deleteResponse.body?.cancel();
+    const userHash = await hashCustomerId(canonicalId, env.USER_HASH_SECRET);
+    await expect(getPdfJob(env.DB, created.jobId, userHash)).resolves.toMatchObject({
+      status: "deleted",
+    });
+  });
+
   it("uploads, extracts at 8192 tokens, completes five credits, and deletes for free", async () => {
     const canonicalId = "$RCAnonymousID:pdf-flow";
     let extractionBody: Record<string, unknown> | null = null;
@@ -260,7 +341,19 @@ describe("protected PDF routes", () => {
           ...authHeaders("pdf-flow-alias"),
           "content-type": "application/json",
         },
-        body: JSON.stringify({ prompt: "Extract the adventure structure." }),
+        body: JSON.stringify({
+          prompt: "Extract the adventure structure.",
+          system: [{ type: "text", text: "Return only sourced content." }],
+          tools: [
+            {
+              name: "record_extracted_content",
+              input_schema: { type: "object", properties: {} },
+            },
+          ],
+          tool_choice: { type: "tool", name: "record_extracted_content" },
+          model: "attempted-client-override",
+          max_tokens: 999_999,
+        }),
       }),
       env
     );
@@ -269,6 +362,12 @@ describe("protected PDF routes", () => {
     await extractResponse.body?.cancel();
     expect(extractionBody).toMatchObject({ max_tokens: 8192 });
     expect(JSON.stringify(extractionBody)).toContain("file_pdf_flow");
+    expect(extractionBody).toMatchObject({
+      model: "claude-haiku-4-5-20251001",
+      system: [{ type: "text", text: "Return only sourced content." }],
+      tools: [{ name: "record_extracted_content" }],
+      tool_choice: { type: "tool", name: "record_extracted_content" },
+    });
 
     const deleteResponse = await worker.fetch(
       new Request(`https://worker.test/v1/pdf-jobs/${created.jobId}/file`, {

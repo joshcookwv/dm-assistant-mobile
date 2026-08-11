@@ -28,6 +28,7 @@ import {
   STANDARD_BODY_LIMIT_BYTES,
   readBoundedJson,
   validateBetaHeader,
+  validatePdfExtractionRequest,
   validateStandardRequest,
 } from "./request-validation";
 import {
@@ -299,23 +300,11 @@ async function handlePdfExtraction(
     throw new RequestValidationError("pdf_job_invalid", 409, "PDF job is not ready.");
   }
 
-  let prompt: string;
+  let extractionRequest: ReturnType<typeof validatePdfExtractionRequest>;
   try {
-    const body = await readBoundedJson(request, STANDARD_BODY_LIMIT_BYTES);
-    if (
-      typeof body !== "object" ||
-      body === null ||
-      !("prompt" in body) ||
-      typeof body.prompt !== "string" ||
-      !body.prompt.trim()
-    ) {
-      throw new RequestValidationError(
-        "invalid_request",
-        400,
-        "Request body must include a prompt."
-      );
-    }
-    prompt = body.prompt;
+    extractionRequest = validatePdfExtractionRequest(
+      await readBoundedJson(request, STANDARD_BODY_LIMIT_BYTES)
+    );
   } catch (error) {
     const credits = await refundFailedPdfJob(env, jobId, userHash);
     if (error instanceof RequestValidationError) return errorResponse(error, credits);
@@ -325,6 +314,13 @@ async function handlePdfExtraction(
   const body: Record<string, unknown> = {
     model: env.ALLOWED_MODEL,
     max_tokens: PDF_OUTPUT_TOKEN_LIMIT,
+    ...(extractionRequest.system !== undefined
+      ? { system: extractionRequest.system }
+      : {}),
+    ...(extractionRequest.tools !== undefined ? { tools: extractionRequest.tools } : {}),
+    ...(extractionRequest.tool_choice !== undefined
+      ? { tool_choice: extractionRequest.tool_choice }
+      : {}),
     messages: [
       {
         role: "user",
@@ -333,7 +329,7 @@ async function handlePdfExtraction(
             type: "document",
             source: { type: "file", file_id: job.anthropicFileId },
           },
-          { type: "text", text: prompt },
+          { type: "text", text: extractionRequest.prompt },
         ],
       },
     ],
@@ -372,7 +368,13 @@ async function handlePdfDelete(
   userHash: string
 ): Promise<Response> {
   const job = await requirePdfJob(env, jobId, userHash);
-  if (!job.anthropicFileId || !["uploaded", "completed"].includes(job.status)) {
+  if (job.status === "created") {
+    await failPdfJob(env.DB, jobId, userHash);
+    await markPdfDeleted(env.DB, jobId, userHash);
+    const credits = await getCreditState(env.DB, userHash, new Date());
+    return jsonResponse({ status: "deleted" }, 200, creditHeaders(credits));
+  }
+  if (!job.anthropicFileId || !["failed", "uploaded", "completed"].includes(job.status)) {
     throw new RequestValidationError("pdf_job_invalid", 409, "PDF file is not available.");
   }
 
@@ -387,6 +389,9 @@ async function handlePdfDelete(
     return upstreamError(await getCreditState(env.DB, userHash, new Date()));
   }
   await upstream.body?.cancel();
+  if (job.status === "uploaded") {
+    await failPdfJob(env.DB, jobId, userHash);
+  }
   await markPdfDeleted(env.DB, jobId, userHash);
   const credits = await getCreditState(env.DB, userHash, new Date());
   return jsonResponse({ status: "deleted" }, 200, creditHeaders(credits));

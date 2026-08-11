@@ -94,3 +94,39 @@ export function validateStandardRequest(body: unknown): Record<string, unknown> 
   }
   return { ...body, model: ALLOWED_MODEL };
 }
+
+export interface PdfExtractionRequest {
+  prompt: string;
+  system?: string | unknown[];
+  tools?: unknown[];
+  tool_choice?: Record<string, unknown>;
+}
+
+export function validatePdfExtractionRequest(body: unknown): PdfExtractionRequest {
+  if (!isRecord(body) || typeof body.prompt !== "string" || !body.prompt.trim()) {
+    throw new RequestValidationError(
+      "invalid_request",
+      400,
+      "Request body must include a prompt."
+    );
+  }
+  if (
+    body.system !== undefined &&
+    typeof body.system !== "string" &&
+    !Array.isArray(body.system)
+  ) {
+    throw new RequestValidationError("invalid_request", 400, "System prompt is invalid.");
+  }
+  if (body.tools !== undefined && !Array.isArray(body.tools)) {
+    throw new RequestValidationError("invalid_request", 400, "Tool definitions are invalid.");
+  }
+  if (body.tool_choice !== undefined && !isRecord(body.tool_choice)) {
+    throw new RequestValidationError("invalid_request", 400, "Tool choice is invalid.");
+  }
+  return {
+    prompt: body.prompt,
+    ...(body.system !== undefined ? { system: body.system } : {}),
+    ...(body.tools !== undefined ? { tools: body.tools } : {}),
+    ...(body.tool_choice !== undefined ? { tool_choice: body.tool_choice } : {}),
+  };
+}

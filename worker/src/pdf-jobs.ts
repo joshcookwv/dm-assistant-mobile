@@ -159,7 +159,7 @@ export async function markPdfDeleted(
   await db
     .prepare(
       `UPDATE pdf_jobs SET status = 'deleted'
-       WHERE id = ?1 AND user_hash = ?2 AND status IN ('uploaded', 'completed')`
+       WHERE id = ?1 AND user_hash = ?2 AND status IN ('failed', 'uploaded', 'completed')`
     )
     .bind(jobId, userHash)
     .run();
