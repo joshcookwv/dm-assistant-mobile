@@ -30,15 +30,15 @@ This is the authoritative release checklist. Check an item only after fresh evid
 
 - [x] Notes FTS punctuation query is covered by a passing regression test. Evidence: `notes-query.test.ts`, August 11, 2026.
 - [x] Drawer navigation closes before navigating and resets stack routes to their index; automated helper test passes. Evidence: `drawer-navigation.test.ts`, August 11, 2026.
-- [ ] Drawer scrim, Android Back, and repeated drawer navigation pass native manual checks.
+- [x] Drawer scrim, Android Back, and repeated drawer navigation pass native manual checks. Evidence: Android emulator `emulator-5556`, all nine drawer destinations plus scrim and Back checks, August 11, 2026.
 - [x] Campaign PC Name, Max HP, and Armor Class validation has passing regression tests. Evidence: `campaign-validation.test.ts`, August 11, 2026.
 - [x] Opening New Campaign creates no record until explicit submission; automated regression coverage passes. Native cancellation check remains pending. Evidence: `new-campaign.test.tsx`, August 11, 2026.
-- [x] Full app unit test suite passes. Evidence: 4 suites, 13 tests, August 11, 2026.
-- [x] App TypeScript passes after the regression-test changes. Evidence: `npm.cmd exec tsc -- --noEmit`, August 11, 2026.
-- [x] App lint completes with zero errors after the regression-test changes. Evidence: `npm.cmd run lint`, August 11, 2026; 12 pre-existing asset-import warnings remain.
-- [ ] Expo Doctor passes all checks.
-- [ ] Android production JavaScript export succeeds.
-- [ ] App production dependency advisories are reviewed and documented without forcing an Expo downgrade.
+- [x] Full app unit test suite passes. Evidence: 11 suites, 31 tests, August 11, 2026.
+- [x] App TypeScript passes after the regression-test changes. Evidence: `npx tsc --noEmit`, August 11, 2026.
+- [x] App lint completes with zero errors after the regression-test changes. Evidence: `npm run lint`, August 11, 2026; 12 pre-existing asset-import warnings remain.
+- [x] Expo Doctor passes all checks. Evidence: 21 of 21 checks, August 11, 2026.
+- [x] Android production JavaScript export succeeds. Evidence: `npx expo export --platform android`, 44 assets and Hermes bundle exported outside the repository, August 11, 2026.
+- [x] App production dependency advisories are reviewed and documented without forcing an Expo downgrade. Evidence: `npm audit --omit=dev` reports 25 transitive Expo/Metro advisories (16 high, 9 moderate); the offered forced fix is a breaking Expo 53 downgrade, so no unsafe auto-fix was applied, August 11, 2026.
 
 ## Cloudflare Worker and D1
 
@@ -71,7 +71,7 @@ This is the authoritative release checklist. Check an item only after fresh evid
 - [ ] Android RevenueCat public SDK key and entitlement ID are configured through EAS production variables.
 - [x] Pro screen displays only the monthly package from RevenueCat's `default` offering. Evidence: `monthlyPackages` and Pro screen tests, August 11, 2026.
 - [x] Pro screen explains monthly auto-renewal, Google Play cancellation/management, free-app availability, 10 daily credits, 1/5 credit costs, restore, privacy, and licensing. Evidence: `pro-copy.test.tsx`, August 11, 2026.
-- [ ] Purchase cancellation is not shown as an error.
+- [x] Purchase cancellation is not shown as an error. Evidence: RevenueCat `userCancelled` regression test, August 11, 2026; store sandbox validation remains part of the purchase-state checklist.
 - [ ] Google Play product `infernal_codex_pro` with base plan `monthly` is active in the United States at $4.99/month.
 - [ ] Dedicated Google service account has only the approved Play, Pub/Sub, and monitoring access.
 - [ ] Service-account JSON is uploaded directly to RevenueCat and is absent from Git/local project files.
@@ -103,7 +103,7 @@ This is the authoritative release checklist. Check an item only after fresh evid
 - [ ] New production AAB is built after production configuration is set.
 - [ ] AAB package is `com.infernalbulldog.dmassistant`, version name is `1.0.0`, version code is incremented, and target API is 36.
 - [ ] AAB has no microphone, camera, overlay, or legacy external-storage permissions and includes RevenueCat billing components.
-- [ ] Native release checklist passes for onboarding, navigation, regressions, purchases, reviewer access, credits, PDF jobs, reporting, privacy/licensing, backup/restore, and relaunch.
+- [ ] Native release checklist passes for onboarding, navigation, regressions, purchases, reviewer access, credits, PDF jobs, reporting, privacy/licensing, backup/restore, and relaunch. Local pre-production evidence: onboarding replay/skip, nine drawer destinations, drawer Back/scrim, backup share-sheet export, restore picker cancellation, persisted local data after relaunch, and zero crash-buffer entries pass on `emulator-5556`, August 11, 2026. Production-configured Pro, purchase, credit, PDF, report, and live-link checks remain pending.
 
 ## Google Play Console setup
 

@@ -1,7 +1,8 @@
-import { render } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { describe, expect, it, jest } from "@jest/globals";
 
 import ProScreen from "../pro";
+import { purchaseProPackage } from "@/lib/purchases";
 
 const mockMonthly = {
   identifier: "$rc_monthly",
@@ -72,5 +73,19 @@ describe("Pro subscription policy copy", () => {
     ]) {
       expect(screen.getByText(copy)).toBeTruthy();
     }
+  });
+
+  it("treats store-sheet cancellation as a neutral outcome", async () => {
+    const purchase = purchaseProPackage as jest.MockedFunction<typeof purchaseProPackage>;
+    purchase.mockRejectedValueOnce({ userCancelled: true });
+    const screen = await render(<ProScreen />);
+    const monthlyOffer = await screen.findByText("$4.99 / month");
+
+    await act(async () => {
+      fireEvent.press(monthlyOffer);
+    });
+
+    await waitFor(() => expect(purchase).toHaveBeenCalledWith(mockMonthly));
+    expect(screen.queryByText(/couldn't complete that purchase/i)).toBeNull();
   });
 });
