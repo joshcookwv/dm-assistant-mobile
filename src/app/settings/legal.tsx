@@ -47,7 +47,9 @@ const OGL_LICENSE_TEXT = `The following text is the property of Wizards of the C
 
 13. Termination: This License will terminate automatically if You fail to comply with all terms herein and fail to cure such breach within 30 days of becoming aware of the breach. All sublicenses shall survive the termination of this License.
 
-14. Reformation: If any provision of this License is held to be unenforceable, such provision shall be reformed only to the extent necessary to make it enforceable.`;
+14. Reformation: If any provision of this License is held to be unenforceable, such provision shall be reformed only to the extent necessary to make it enforceable.
+
+15. COPYRIGHT NOTICE: Open Game License v 1.0a Copyright 2000, Wizards of the Coast, Inc.`;
 
 const SECTION_15_NOTICE = `Open Game License v1.0a Copyright 2000, Wizards of the Coast, Inc.
 

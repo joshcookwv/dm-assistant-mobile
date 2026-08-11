@@ -4,7 +4,6 @@
 
 **A standalone Android/iOS app for running D&D 5e games — rules, NPCs, notes, encounters, maps, and AI-assisted prep, entirely on your phone.**
 
-[![Private](https://img.shields.io/badge/repo-private-red.svg)]()
 [![Expo SDK](https://img.shields.io/badge/Expo%20SDK-56-black)](https://expo.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
 
@@ -49,6 +48,8 @@ Not on a store yet — see [`docs/store-submission.md`](docs/store-submission.md
 ## Your data
 
 Campaign data — NPCs, notes, encounters, maps, and your bestiary — lives on your device in SQLite and device storage; it is not cloud-synced. When a Pro user deliberately runs an AI feature, only the content needed for that request is sent over HTTPS through the Infernal Codex Cloudflare Worker to Anthropic. RevenueCat receives an anonymous app-user ID and purchase/subscription records to provide Pro access. The Worker does not persist prompt or response content.
+
+Public policies: [Privacy Policy](https://joshcookwv.github.io/dm-assistant-mobile/privacy/) · [SRD & Open Content Licenses](https://joshcookwv.github.io/dm-assistant-mobile/licenses/) · [Report an issue](https://github.com/joshcookwv/dm-assistant-mobile/issues/new)
 
 ## Tech stack
 

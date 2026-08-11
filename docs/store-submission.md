@@ -20,7 +20,7 @@ Since there's no iOS build yet at all (see README), doing Android first gets som
 
 ## 3. Required before Play Store will accept the listing
 
-- [ ] **Update the live privacy policy before linking it in Play Console.** The URL is https://joshcookwv.github.io/dm-assistant-mobile-support/, but its current text describes BYO-key/direct-Anthropic behavior and is now stale. The replacement must disclose RevenueCat purchase/subscription processing, the anonymous RevenueCat app-user ID, Cloudflare proxy processing, Anthropic processing, retention/deletion contacts, and that campaign content leaves the device only when a Pro user invokes an AI feature. After publishing the corrected page, paste the same URL into Play Console's App content → Privacy policy field.
+- [ ] **Publish and verify the privacy policy before linking it in Play Console.** The repository now contains the replacement for https://joshcookwv.github.io/dm-assistant-mobile/privacy/. It discloses RevenueCat purchase/subscription processing, the anonymous RevenueCat app-user ID, Cloudflare proxy processing, Anthropic processing, retention/deletion contacts, and that campaign content leaves the device only when a Pro user invokes an AI feature. After publishing, paste that URL into Play Console's App content → Privacy policy field.
 - [ ] **Data safety form** (Play Console → App content → Data safety). Draft answers:
   - Does your app collect or share user data? **Yes.** Google defines off-device transmission by the app or an SDK as collection, including pseudonymous and ephemeral processing.
   - Declare **Other user-generated content** as optional collection for app functionality: NPC/campaign/session text and selected PDFs are sent only when a Pro user deliberately invokes the corresponding AI tool. The Worker does not persist prompt/response content; confirm Anthropic's applicable API retention terms before filing.
@@ -96,7 +96,7 @@ D&D, Dungeons and Dragons, 5e, DM tools, tabletop RPG, dungeon master, TTRPG, co
 
 ## 6. Privacy policy — live
 
-Hosted at https://joshcookwv.github.io/dm-assistant-mobile-support/ ([source](https://github.com/joshcookwv/dm-assistant-mobile-support)). **Do not paste the URL into Play Console until the live page is replaced with the draft below and rechecked against the configured provider retention/deletion terms.**
+Hosted at https://joshcookwv.github.io/dm-assistant-mobile/privacy/ ([source](https://github.com/joshcookwv/dm-assistant-mobile/tree/master/site/privacy)). **Do not paste the URL into Play Console until the live page is verified against the configured provider retention/deletion terms.**
 
 > **Privacy Policy — Infernal Codex**
 >
@@ -110,7 +110,7 @@ Hosted at https://joshcookwv.github.io/dm-assistant-mobile-support/ ([source](ht
 >
 > **Data deletion.** Uninstalling the app removes its local campaign data. For deletion questions about the anonymous purchase record or provider-retained AI request data, use the contact below and include the anonymous purchase ID shown in Settings.
 >
-> **Contact.** Use the [issue tracker](https://github.com/joshcookwv/dm-assistant-mobile-support/issues/new) for any privacy questions.
+> **Contact.** Email [infernalbuldog@gmail.com](mailto:infernalbuldog@gmail.com) for privacy questions and deletion requests, or use the [issue tracker](https://github.com/joshcookwv/dm-assistant-mobile/issues/new) for non-sensitive app issues.
 
 ## 7. SRD content licensing (researched 2026-08-06)
 

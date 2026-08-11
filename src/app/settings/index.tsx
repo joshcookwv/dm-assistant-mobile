@@ -10,8 +10,9 @@ import { Colors } from "@/constants/colors";
 import { exportBackup, importBackup, type BackupCounts } from "@/lib/backup";
 import { useProAccess } from "@/providers/pro-access";
 
-const SUPPORT_ISSUES_URL = "https://github.com/joshcookwv/dm-assistant-mobile-support/issues/new";
-const PRIVACY_POLICY_URL = "https://joshcookwv.github.io/dm-assistant-mobile-support/";
+const SUPPORT_ISSUES_URL = "https://github.com/joshcookwv/dm-assistant-mobile/issues/new";
+const PRIVACY_POLICY_URL = "https://joshcookwv.github.io/dm-assistant-mobile/privacy/";
+const LICENSES_URL = "https://joshcookwv.github.io/dm-assistant-mobile/licenses/";
 
 function summarizeCounts(counts: BackupCounts): string {
   const parts = [
@@ -173,7 +174,7 @@ export default function SettingsScreen() {
           <Text className="mt-0.5 text-xs text-muted">How local data, purchases, and optional AI processing work</Text>
         </Pressable>
         <Pressable
-          onPress={() => router.push("/settings/legal")}
+          onPress={() => Linking.openURL(LICENSES_URL)}
           className="rounded-xl border border-panel-border bg-panel px-4 py-3 active:bg-white/5"
         >
           <Text className="text-sm font-medium text-foreground">Legal &amp; Licenses</Text>
