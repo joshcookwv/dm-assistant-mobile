@@ -95,7 +95,7 @@ This is the authoritative release checklist. Check an item only after fresh evid
 
 ## Production infrastructure and build
 
-- [ ] Cloudflare D1 database is created and production migrations are applied.
+- [x] Cloudflare D1 database is created in US jurisdiction and production migrations are applied. Evidence: live Cloudflare API creation and schema query returned all six expected empty tables, August 11, 2026; database ID is recorded in `worker/wrangler.toml`.
 - [ ] Worker secrets `ANTHROPIC_API_KEY`, `REVENUECAT_SECRET_API_KEY`, and `USER_HASH_SECRET` are configured without being printed or written to disk.
 - [ ] Worker is deployed and `/health` returns status `ok`.
 - [ ] Unauthorized AI and report smoke tests are rejected and D1 contains no raw identifiers or prompt content.

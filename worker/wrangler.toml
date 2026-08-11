@@ -11,12 +11,12 @@ PDF_CREDIT_COST = 5
 ALLOWED_MODEL = "claude-haiku-4-5-20251001"
 REVENUECAT_ENTITLEMENT_ID = "REPLACE_BEFORE_DEPLOY"
 
-# Local tests use Miniflare with this binding. Task 11 replaces the zero UUID
-# with the nonsecret production database ID before deployment.
+# Local tests use Miniflare with this binding. The UUID is the nonsecret
+# production D1 database identifier.
 [[d1_databases]]
 binding = "DB"
 database_name = "infernal-codex"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "c1c0138a-5e9a-4538-a0ae-1ada8fff20b8"
 migrations_dir = "migrations"
 
 [triggers]
