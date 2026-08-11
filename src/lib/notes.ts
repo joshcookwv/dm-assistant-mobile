@@ -19,7 +19,7 @@ export interface NoteInput {
   locationId?: number | null;
 }
 
-function buildFtsQuery(raw: string): string {
+export function buildFtsQuery(raw: string): string {
   const tokens = raw
     .split(/\s+/)
     .map((token) => token.trim())

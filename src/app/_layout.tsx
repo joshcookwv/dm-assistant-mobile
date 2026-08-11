@@ -14,18 +14,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import { Colors } from "@/constants/colors";
+import { drawerTarget } from "@/lib/drawer-navigation";
 import { ProAccessProvider } from "@/providers/pro-access";
-
-const DRAWER_STACK_ROUTES = new Set([
-  "rules",
-  "monsters",
-  "npcs",
-  "notes",
-  "campaign",
-  "encounters",
-  "maps",
-  "settings",
-]);
 
 function AppDrawerContent(props: DrawerContentComponentProps) {
   const focusedRoute = props.state.routes[props.state.index];
@@ -43,12 +33,10 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
     // the drawer transition stuck open on Android. Finish the close animation
     // first, then navigate after interactions have drained.
     props.navigation.closeDrawer();
-    if (!focused || DRAWER_STACK_ROUTES.has(route.name)) {
+    const target = drawerTarget(route.name, route.params);
+    if (!focused || target.params?.screen === "index") {
       InteractionManager.runAfterInteractions(() => {
-        const params = DRAWER_STACK_ROUTES.has(route.name)
-          ? { ...route.params, screen: "index" }
-          : route.params;
-        props.navigation.navigate(route.name, params);
+        props.navigation.navigate(route.name, target.params);
       });
     }
   }

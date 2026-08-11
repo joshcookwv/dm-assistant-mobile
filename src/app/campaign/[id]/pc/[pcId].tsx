@@ -13,6 +13,7 @@ import {
   getCampaignPc,
   updateCampaignPc,
 } from "@/lib/campaigns";
+import { validateCampaignPc } from "@/lib/campaign-validation";
 
 interface FormState {
   name: string;
@@ -59,18 +60,15 @@ export default function CampaignPcScreen() {
   }, [pcId, isNew, navigation]);
 
   function handleSave() {
-    const maxHp = Number(form.maxHp);
-    const ac = Number(form.ac);
-    if (!form.name.trim() || !form.maxHp.trim() || !form.ac.trim()) {
-      Alert.alert("Required fields", "Name, Max HP, and Armor Class are required.");
-      return;
-    }
-    if (!Number.isInteger(maxHp) || maxHp < 1) {
-      Alert.alert("Invalid Max HP", "Max HP must be a whole number greater than zero.");
-      return;
-    }
-    if (!Number.isInteger(ac) || ac < 0) {
-      Alert.alert("Invalid Armor Class", "Armor Class must be a whole number of zero or greater.");
+    const validation = validateCampaignPc(form);
+    if (!validation.ok) {
+      if (!form.name.trim() || !form.maxHp.trim() || !form.ac.trim()) {
+        Alert.alert("Required fields", "Name, Max HP, and Armor Class are required.");
+      } else if (validation.field === "maxHp") {
+        Alert.alert("Invalid Max HP", "Max HP must be a whole number greater than zero.");
+      } else {
+        Alert.alert("Invalid Armor Class", "Armor Class must be a whole number of zero or greater.");
+      }
       return;
     }
     setSaving(true);
@@ -79,8 +77,8 @@ export default function CampaignPcScreen() {
         campaignId,
         name: form.name.trim(),
         classLevel: form.classLevel.trim(),
-        maxHp,
-        ac,
+        maxHp: validation.maxHp,
+        ac: validation.ac,
         notes: form.notes,
       };
       if (isNew) {
