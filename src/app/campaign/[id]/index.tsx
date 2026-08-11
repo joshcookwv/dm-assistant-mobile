@@ -4,12 +4,14 @@ import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "exp
 
 import { AppIcon } from "@/components/app-icon";
 import { AiError } from "@/components/ai-error";
+import { AiReportAction } from "@/components/ai-report-action";
 import { DeleteButton, DeleteConfirmBar } from "@/components/delete-confirm-bar";
 import { FormField } from "@/components/form-field";
 import { FormSection } from "@/components/form-section";
 import { ProAiButton } from "@/components/pro-ai-button";
 import { Colors } from "@/constants/colors";
 import { generateCampaignSummary } from "@/lib/campaign-ai";
+import { AI_MODEL } from "@/lib/ai";
 import {
   createCampaignSession,
   deleteCampaign,
@@ -37,6 +39,7 @@ export default function CampaignDetailScreen() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [generatedSummary, setGeneratedSummary] = useState<string | null>(null);
   const dirty = useRef(false);
   const latestDraft = useRef({ name: "", notes: "" });
 
@@ -111,6 +114,7 @@ export default function CampaignDetailScreen() {
         ),
       });
       dirty.current = true;
+      setGeneratedSummary(generated);
       setNotes(generated);
     } catch (error) {
       setSummaryError(error instanceof Error ? error.message : "Couldn't generate a campaign summary.");
@@ -171,6 +175,13 @@ export default function CampaignDetailScreen() {
           }
         />
         {summaryError && <AiError message={summaryError} />}
+        {generatedSummary && (
+          <AiReportAction
+            output={generatedSummary}
+            feature="campaign_summary"
+            model={AI_MODEL}
+          />
+        )}
       </FormSection>
 
       <View>

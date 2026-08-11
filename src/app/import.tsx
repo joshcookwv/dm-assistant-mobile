@@ -12,6 +12,7 @@ import {
 import * as DocumentPicker from "expo-document-picker";
 
 import { AiError } from "@/components/ai-error";
+import { AiReportAction } from "@/components/ai-report-action";
 import { Colors } from "@/constants/colors";
 import { ProGateCard } from "@/components/pro-gate-card";
 import { createNpc } from "@/lib/npcs";
@@ -25,16 +26,22 @@ import {
   type PdfImportStage,
 } from "@/lib/pdf-import";
 import { useProAccess } from "@/providers/pro-access";
+import { AI_MODEL } from "@/lib/ai";
 
 type Stage = "idle" | "working" | "review" | "importing" | "done";
 
 interface Staged<T> {
   included: boolean;
   data: T;
+  generated: T;
 }
 
 function withIncluded<T>(items: T[]): Staged<T>[] {
-  return items.map((data) => ({ included: true, data }));
+  return items.map((data) => ({ included: true, data, generated: data }));
+}
+
+function reportablePdfOutput(value: unknown): string {
+  return JSON.stringify(value, null, 2);
 }
 
 function Checkbox({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {
@@ -265,6 +272,13 @@ export default function ImportScreen() {
                     multiline
                     className="mt-2 rounded border border-panel-border bg-background px-2 py-1.5 text-xs text-foreground"
                   />
+                  <View className="mt-2">
+                    <AiReportAction
+                      output={reportablePdfOutput(item.generated)}
+                      feature="pdf_import"
+                      model={AI_MODEL}
+                    />
+                  </View>
                 </View>
               )}
             />
@@ -344,6 +358,13 @@ export default function ImportScreen() {
                     multiline
                     className="mt-2 rounded border border-panel-border bg-background px-2 py-1.5 font-mono text-xs text-foreground"
                   />
+                  <View className="mt-2">
+                    <AiReportAction
+                      output={reportablePdfOutput(item.generated)}
+                      feature="pdf_import"
+                      model={AI_MODEL}
+                    />
+                  </View>
                 </View>
               )}
             />
@@ -377,6 +398,13 @@ export default function ImportScreen() {
                     multiline
                     className="mt-2 rounded border border-panel-border bg-background px-2 py-1.5 text-xs text-foreground"
                   />
+                  <View className="mt-2">
+                    <AiReportAction
+                      output={reportablePdfOutput(item.generated)}
+                      feature="pdf_import"
+                      model={AI_MODEL}
+                    />
+                  </View>
                 </View>
               )}
             />

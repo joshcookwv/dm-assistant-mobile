@@ -3,6 +3,7 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, Vie
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 
 import { AiError } from "@/components/ai-error";
+import { AiReportAction } from "@/components/ai-report-action";
 import { AppIcon } from "@/components/app-icon";
 import { DeleteButton, DeleteConfirmBar } from "@/components/delete-confirm-bar";
 import { FormField } from "@/components/form-field";
@@ -22,6 +23,7 @@ import {
   type NpcAppearanceDetail,
 } from "@/lib/campaigns";
 import { suggestNpcDescription, suggestNpcName } from "@/lib/npc-ai";
+import { AI_MODEL } from "@/lib/ai";
 import { createNpc, deleteNpc, getNpc, updateNpc, type NpcInput } from "@/lib/npcs";
 
 function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
@@ -128,6 +130,8 @@ export default function NpcDetailScreen() {
   const [nameAiError, setNameAiError] = useState<string | null>(null);
   const [descAiLoading, setDescAiLoading] = useState(false);
   const [descAiError, setDescAiError] = useState<string | null>(null);
+  const [generatedName, setGeneratedName] = useState<string | null>(null);
+  const [generatedDescription, setGeneratedDescription] = useState<string | null>(null);
   const [appearances, setAppearances] = useState<NpcAppearanceDetail[]>([]);
 
   const refreshAppearances = useCallback(() => {
@@ -181,6 +185,7 @@ export default function NpcDetailScreen() {
     setNameAiError(null);
     try {
       const name = await suggestNpcName({ race: form.race, role: form.role, location: form.location });
+      setGeneratedName(name);
       setForm((previous) => ({ ...previous, name }));
     } catch (error) {
       // AiNotConfiguredError extends Error and now carries its own correct,
@@ -203,6 +208,7 @@ export default function NpcDetailScreen() {
         role: form.role,
         location: form.location,
       });
+      setGeneratedDescription(description);
       setForm((previous) => ({ ...previous, description }));
     } catch (error) {
       setDescAiError(error instanceof Error ? error.message : "AI suggestion failed.");
@@ -224,6 +230,11 @@ export default function NpcDetailScreen() {
               labelRight={<ProAiButton label="Suggest" loading={nameAiLoading} onPress={handleSuggestName} />}
             />
             {nameAiError && <AiError message={nameAiError} />}
+            {generatedName && (
+              <View className="mt-2">
+                <AiReportAction output={generatedName} feature="npc" model={AI_MODEL} />
+              </View>
+            )}
           </View>
           <View className="flex-row gap-3">
             <View className="flex-1">
@@ -252,6 +263,11 @@ export default function NpcDetailScreen() {
               labelRight={<ProAiButton label="Suggest" loading={descAiLoading} disabled={!form.name.trim()} onPress={handleSuggestDescription} />}
             />
             {descAiError && <AiError message={descAiError} />}
+            {generatedDescription && (
+              <View className="mt-2">
+                <AiReportAction output={generatedDescription} feature="npc" model={AI_MODEL} />
+              </View>
+            )}
           </View>
         </FormSection>
 

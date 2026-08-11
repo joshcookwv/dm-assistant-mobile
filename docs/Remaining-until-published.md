@@ -57,9 +57,9 @@ This is the authoritative release checklist. Check an item only after fresh evid
 
 ## AI-output reporting and cost controls
 
-- [ ] Every generated NPC suggestion, campaign summary, session summary, and PDF staging output has an in-app report action.
-- [ ] Report modal shows the exact output, five categories, optional comment, and 30-day disclosure.
-- [ ] Report submission stays in the app and shows success or retryable error state.
+- [x] Every generated NPC suggestion, campaign summary, session summary, and PDF staging output has an in-app report action. Evidence: source integration review and full app TypeScript check, August 11, 2026.
+- [x] Report modal shows the exact output, five categories, optional comment, and 30-day disclosure. Evidence: `ai-report-modal.test.tsx`, August 11, 2026.
+- [x] Report submission stays in the app and shows success or retryable error state. Evidence: reusable modal implementation and component test, August 11, 2026.
 - [x] Reports consume no AI credits and have a separate atomic limit of 10 reports per customer per UTC day. Evidence: 20 concurrent report attempts accept exactly 10; protected route remains at 10 AI credits, August 11, 2026.
 - [x] D1 deletes reports after 30 days and removes obsolete operational rows on schedule. Evidence: cleanup test plus Wrangler daily `0 5 * * *` cron, August 11, 2026.
 - [x] Daily request/input-token/output-token/error metrics contain no customer identifier or content. Evidence: aggregate metric schema and accumulation test, August 11, 2026.

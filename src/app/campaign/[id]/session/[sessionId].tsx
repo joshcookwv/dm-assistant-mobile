@@ -4,10 +4,12 @@ import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "exp
 
 import { DeleteButton, DeleteConfirmBar } from "@/components/delete-confirm-bar";
 import { AiError } from "@/components/ai-error";
+import { AiReportAction } from "@/components/ai-report-action";
 import { FormField } from "@/components/form-field";
 import { FormSection } from "@/components/form-section";
 import { ProAiButton } from "@/components/pro-ai-button";
 import { generateSessionSummary } from "@/lib/campaign-ai";
+import { AI_MODEL } from "@/lib/ai";
 import {
   deleteCampaignSession,
   getCampaign,
@@ -26,6 +28,7 @@ export default function CampaignSessionScreen() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [generatedSummary, setGeneratedSummary] = useState<string | null>(null);
   const dirty = useRef(false);
   const latestDraft = useRef({ name: "", playedOn: "", recap: "" });
 
@@ -99,6 +102,7 @@ export default function CampaignSessionScreen() {
         notes: recap.trim(),
       });
       dirty.current = true;
+      setGeneratedSummary(generated);
       setRecap(generated);
     } catch (error) {
       setSummaryError(error instanceof Error ? error.message : "Couldn't generate a session summary.");
@@ -130,6 +134,13 @@ export default function CampaignSessionScreen() {
           }
         />
         {summaryError && <AiError message={summaryError} />}
+        {generatedSummary && (
+          <AiReportAction
+            output={generatedSummary}
+            feature="session_summary"
+            model={AI_MODEL}
+          />
+        )}
       </FormSection>
 
       <Text className="text-center text-xs text-muted">Saves automatically as you type.</Text>
