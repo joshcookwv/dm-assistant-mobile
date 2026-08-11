@@ -24,7 +24,13 @@ import {
 } from "@/lib/campaigns";
 import { suggestNpcDescription, suggestNpcName } from "@/lib/npc-ai";
 import { AI_MODEL } from "@/lib/ai";
-import { createNpc, deleteNpc, getNpc, updateNpc, type NpcInput } from "@/lib/npcs";
+import {
+  createNpcRelation,
+  deleteNpcRelation,
+  listRelationsForNpc,
+  type NpcRelationDetail,
+} from "@/lib/npc-relations";
+import { createNpc, deleteNpc, getNpc, listNpcs, updateNpc, type Npc, type NpcInput } from "@/lib/npcs";
 
 function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
@@ -115,6 +121,106 @@ function AppearanceLogger({ npcId, onLogged }: { npcId: number; onLogged: () => 
   );
 }
 
+const RELATION_TYPE_PRESETS = ["Ally", "Rival", "Family", "Mentor", "Servant", "Enemy"];
+
+function RelationshipLogger({ npcId, onLogged }: { npcId: number; onLogged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [candidates, setCandidates] = useState<Npc[]>([]);
+  const [otherNpcId, setOtherNpcId] = useState<number | null>(null);
+  const [relationType, setRelationType] = useState("");
+  const [notes, setNotes] = useState("");
+
+  function handleOpen() {
+    setCandidates(listNpcs().filter((npc) => npc.id !== npcId));
+    setOpen(true);
+  }
+
+  function handleQueryChange(next: string) {
+    setQuery(next);
+    setCandidates(listNpcs(next).filter((npc) => npc.id !== npcId));
+  }
+
+  function handleSubmit() {
+    if (!otherNpcId) return;
+    createNpcRelation({
+      npcId,
+      relatedNpcId: otherNpcId,
+      relationType: relationType.trim(),
+      notes: notes.trim(),
+    });
+    setOpen(false);
+    setQuery("");
+    setOtherNpcId(null);
+    setRelationType("");
+    setNotes("");
+    onLogged();
+  }
+
+  if (!open) {
+    return (
+      <Pressable onPress={handleOpen} hitSlop={8}>
+        <Text className="text-xs font-semibold text-accent-bright">+ Add Relationship</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View className="mt-3 gap-3 rounded-2xl border border-panel-border bg-panel p-3.5">
+      {candidates.length === 0 && !query ? (
+        <Text className="text-sm text-muted">No other NPCs yet — create one first.</Text>
+      ) : (
+        <>
+          <FormField label="Find NPC" value={query} onChangeText={handleQueryChange} placeholder="Search by name..." />
+          <View className="flex-row flex-wrap gap-2">
+            {candidates.slice(0, 12).map((npc) => (
+              <Chip
+                key={npc.id}
+                label={npc.name}
+                selected={otherNpcId === npc.id}
+                onPress={() => setOtherNpcId(npc.id)}
+              />
+            ))}
+          </View>
+          {otherNpcId && (
+            <>
+              <Text className="text-xs font-semibold uppercase tracking-wide text-muted">Relationship</Text>
+              <View className="flex-row flex-wrap gap-2">
+                {RELATION_TYPE_PRESETS.map((preset) => (
+                  <Chip
+                    key={preset}
+                    label={preset}
+                    selected={relationType === preset}
+                    onPress={() => setRelationType(preset)}
+                  />
+                ))}
+              </View>
+              <FormField
+                label=""
+                value={relationType}
+                onChangeText={setRelationType}
+                placeholder="Or type your own (e.g. reports to)"
+              />
+              <FormField
+                label="Notes"
+                value={notes}
+                onChangeText={setNotes}
+                placeholder="How they're connected..."
+                multiline
+                className="min-h-16"
+              />
+              <PrimaryButton label="Add Relationship" icon="check" onPress={handleSubmit} />
+            </>
+          )}
+        </>
+      )}
+      <Pressable onPress={() => setOpen(false)}>
+        <Text className="text-center text-xs text-muted">Cancel</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 const BLANK_FORM: NpcInput = { name: "", race: "", role: "", location: "", tags: "", description: "" };
 
 export default function NpcDetailScreen() {
@@ -133,12 +239,18 @@ export default function NpcDetailScreen() {
   const [generatedName, setGeneratedName] = useState<string | null>(null);
   const [generatedDescription, setGeneratedDescription] = useState<string | null>(null);
   const [appearances, setAppearances] = useState<NpcAppearanceDetail[]>([]);
+  const [relations, setRelations] = useState<NpcRelationDetail[]>([]);
 
   const refreshAppearances = useCallback(() => {
     if (!isNew) setAppearances(listAppearancesByNpc(Number(id)));
   }, [id, isNew]);
 
+  const refreshRelations = useCallback(() => {
+    if (!isNew) setRelations(listRelationsForNpc(Number(id)));
+  }, [id, isNew]);
+
   useFocusEffect(refreshAppearances);
+  useFocusEffect(refreshRelations);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -303,6 +415,43 @@ export default function NpcDetailScreen() {
               </View>
             )}
             <AppearanceLogger npcId={Number(id)} onLogged={refreshAppearances} />
+          </FormSection>
+        )}
+
+        {!isNew && (
+          <FormSection title="Relationships" description="How this NPC connects to others in your world." icon="link">
+            {relations.length === 0 ? (
+              <Text className="text-sm leading-5 text-muted">No relationships logged yet.</Text>
+            ) : (
+              <View className="gap-2">
+                {relations.map((relation) => (
+                  <View
+                    key={relation.id}
+                    className="flex-row items-start gap-3 rounded-2xl border border-panel-border bg-panel-raised p-3"
+                  >
+                    <View className="flex-1">
+                      <Pressable onPress={() => router.push(`/npcs/${relation.otherNpcId}`)}>
+                        <Text className="text-sm font-bold text-accent-bright">{relation.otherNpcName}</Text>
+                      </Pressable>
+                      {!!relation.relationType && <Text className="mt-0.5 text-xs text-muted">{relation.relationType}</Text>}
+                      {!!relation.notes && (
+                        <Text className="mt-1 text-xs leading-4 text-foreground/80">{relation.notes}</Text>
+                      )}
+                    </View>
+                    <Pressable
+                      onPress={() => {
+                        deleteNpcRelation(relation.id);
+                        refreshRelations();
+                      }}
+                      hitSlop={8}
+                    >
+                      <AppIcon name="trash" size={15} color={Colors.muted} />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+            <RelationshipLogger npcId={Number(id)} onLogged={refreshRelations} />
           </FormSection>
         )}
 

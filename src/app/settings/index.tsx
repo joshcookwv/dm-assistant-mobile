@@ -16,6 +16,7 @@ const LICENSES_URL = "https://joshcookwv.github.io/dm-assistant-mobile/licenses/
 
 function summarizeCounts(counts: BackupCounts): string {
   const parts = [
+    counts.campaigns && `${counts.campaigns} campaign${counts.campaigns === 1 ? "" : "s"}`,
     counts.npcs && `${counts.npcs} NPC${counts.npcs === 1 ? "" : "s"}`,
     counts.notes && `${counts.notes} note${counts.notes === 1 ? "" : "s"}`,
     counts.encounters && `${counts.encounters} encounter${counts.encounters === 1 ? "" : "s"}`,

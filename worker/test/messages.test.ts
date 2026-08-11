@@ -97,6 +97,28 @@ describe("standard message validation", () => {
       status: 413,
     });
   });
+
+  it("stops reading a streaming JSON body once it crosses the limit", async () => {
+    const chunk = new Uint8Array(128 * 1024).fill(120);
+    let pulls = 0;
+    const request = new Request("https://worker.test/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: new ReadableStream({
+        pull(controller) {
+          pulls += 1;
+          controller.enqueue(chunk);
+          if (pulls === 3) controller.close();
+        },
+      }),
+    });
+
+    await expect(readBoundedJson(request, 256 * 1024)).rejects.toMatchObject({
+      code: "body_too_large",
+      status: 413,
+    });
+    expect(pulls).toBe(3);
+  });
 });
 
 describe("POST /v1/messages", () => {
@@ -133,6 +155,28 @@ describe("POST /v1/messages", () => {
     for (const request of requests) {
       const response = await worker.fetch(request, env);
       expect(response.status).toBe(400);
+      await response.body?.cancel();
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-JSON and JSON-prefix content types before authentication", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    for (const contentType of ["text/plain", "application/jsonx"]) {
+      const response = await worker.fetch(
+        new Request("https://worker.test/v1/messages", {
+          method: "POST",
+          headers: {
+            "content-type": contentType,
+            "x-revenuecat-app-user-id": "wrong-content-type",
+          },
+          body: JSON.stringify(validBody),
+        }),
+        env
+      );
+
+      expect(response.status).toBe(415);
       await response.body?.cancel();
     }
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -209,6 +253,33 @@ describe("POST /v1/messages", () => {
       .bind(userHash)
       .first<{ credits_used: number }>();
     expect(usage?.credits_used).toBe(0);
+  });
+
+  it("refunds when a successful upstream response body cannot be read", async () => {
+    const canonicalId = "$RCAnonymousID:body-read-failure";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.startsWith("https://api.revenuecat.com/")) return activeCustomer(canonicalId);
+        if (url === "https://api.anthropic.com/v1/messages") {
+          return new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(new Error("upstream stream failed"));
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          );
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      })
+    );
+
+    const response = await worker.fetch(messageRequest("body-read-alias"), env);
+    expect(response.status).toBe(502);
+    expect(response.headers.get("x-ai-credits-remaining")).toBe("10");
+    await response.body?.cancel();
   });
 
   it("returns 429 with credit/reset headers before Anthropic", async () => {

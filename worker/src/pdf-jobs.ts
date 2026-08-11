@@ -1,4 +1,4 @@
-import { completeReservation, refundCredits, reserveCredits } from "./quota";
+import { refundCredits, reserveCredits } from "./quota";
 import { RequestValidationError } from "./request-validation";
 import type { CreditState } from "./types";
 
@@ -9,7 +9,14 @@ export interface PdfJob {
   userHash: string;
   reservationId: string;
   anthropicFileId: string | null;
-  status: "created" | "uploaded" | "completed" | "failed" | "deleted";
+  status:
+    | "created"
+    | "uploading"
+    | "uploaded"
+    | "extracting"
+    | "completed"
+    | "failed"
+    | "deleted";
   createdAt: string;
   expiresAt: string;
 }
@@ -100,7 +107,7 @@ export async function recordPdfUpload(
     .prepare(
       `UPDATE pdf_jobs
        SET anthropic_file_id = ?1, status = 'uploaded'
-       WHERE id = ?2 AND user_hash = ?3 AND status = 'created'`
+       WHERE id = ?2 AND user_hash = ?3 AND status = 'uploading'`
     )
     .bind(anthropicFileId, jobId, userHash)
     .run();
@@ -109,21 +116,95 @@ export async function recordPdfUpload(
   }
 }
 
+async function claimPdfTransition(
+  db: D1Database,
+  jobId: string,
+  userHash: string,
+  fromStatus: "created" | "uploaded",
+  toStatus: "uploading" | "extracting"
+): Promise<PdfJob> {
+  const row = await db
+    .prepare(
+      `UPDATE pdf_jobs SET status = ?1
+       WHERE id = ?2 AND user_hash = ?3 AND status = ?4
+       RETURNING id, user_hash, reservation_id, anthropic_file_id, status,
+                 created_at, expires_at`
+    )
+    .bind(toStatus, jobId, userHash, fromStatus)
+    .first<PdfJobRow>();
+  if (!row) {
+    throw new RequestValidationError(
+      "pdf_job_invalid",
+      409,
+      fromStatus === "created"
+        ? "PDF job cannot accept an upload."
+        : "PDF job is not ready."
+    );
+  }
+  return fromRow(row);
+}
+
+export function claimPdfUpload(
+  db: D1Database,
+  jobId: string,
+  userHash: string
+): Promise<PdfJob> {
+  return claimPdfTransition(db, jobId, userHash, "created", "uploading");
+}
+
+export async function claimPdfExtraction(
+  db: D1Database,
+  jobId: string,
+  userHash: string
+): Promise<PdfJob> {
+  const job = await claimPdfTransition(db, jobId, userHash, "uploaded", "extracting");
+  if (!job.anthropicFileId) {
+    await failPdfJob(db, jobId, userHash);
+    throw new RequestValidationError("pdf_job_invalid", 409, "PDF job is not ready.");
+  }
+  return job;
+}
+
 export async function failPdfJob(
   db: D1Database,
   jobId: string,
   userHash: string
 ): Promise<void> {
   const job = await getPdfJob(db, jobId, userHash);
-  if (!job || job.status === "failed" || job.status === "completed") return;
-  await db
-    .prepare(
-      `UPDATE pdf_jobs SET status = 'failed'
-       WHERE id = ?1 AND user_hash = ?2 AND status IN ('created', 'uploaded')`
-    )
-    .bind(jobId, userHash)
-    .run();
-  await refundCredits(db, job.reservationId);
+  if (!job || job.status === "completed" || job.status === "deleted") return;
+  const timestamp = new Date().toISOString();
+  await db.batch([
+    db
+      .prepare(
+        `UPDATE pdf_jobs SET status = 'failed'
+         WHERE id = ?1 AND user_hash = ?2
+           AND status IN ('created', 'uploading', 'uploaded', 'extracting', 'failed')`
+      )
+      .bind(jobId, userHash),
+    db
+      .prepare(
+        `UPDATE quota_reservations SET status = 'refunded'
+         WHERE id = ?1 AND status = 'reserved'`
+      )
+      .bind(job.reservationId),
+    db
+      .prepare(
+        `UPDATE quota_usage
+         SET credits_used = MAX(
+               0,
+               credits_used - COALESCE(
+                 (SELECT credits FROM quota_reservations WHERE id = ?1),
+                 0
+               )
+             ),
+             updated_at = ?2
+         WHERE changes() = 1
+           AND (user_hash, day_utc) = (
+             SELECT user_hash, day_utc FROM quota_reservations WHERE id = ?1
+           )`
+      )
+      .bind(job.reservationId, timestamp),
+  ]);
 }
 
 export async function completePdfJob(
@@ -132,14 +213,14 @@ export async function completePdfJob(
   userHash: string
 ): Promise<void> {
   const job = await getPdfJob(db, jobId, userHash);
-  if (!job || job.status !== "uploaded") {
+  if (!job || job.status !== "extracting") {
     throw new RequestValidationError("pdf_job_invalid", 409, "PDF job is not ready.");
   }
   await db.batch([
     db
       .prepare(
         `UPDATE pdf_jobs SET status = 'completed'
-         WHERE id = ?1 AND user_hash = ?2 AND status = 'uploaded'`
+         WHERE id = ?1 AND user_hash = ?2 AND status = 'extracting'`
       )
       .bind(jobId, userHash),
     db
@@ -158,11 +239,41 @@ export async function markPdfDeleted(
 ): Promise<void> {
   await db
     .prepare(
-      `UPDATE pdf_jobs SET status = 'deleted'
-       WHERE id = ?1 AND user_hash = ?2 AND status IN ('failed', 'uploaded', 'completed')`
+      `UPDATE pdf_jobs SET status = 'deleted', anthropic_file_id = NULL
+       WHERE id = ?1 AND user_hash = ?2
+         AND status IN ('failed', 'uploaded', 'completed')`
     )
     .bind(jobId, userHash)
     .run();
+}
+
+export async function listExpiredPdfJobs(
+  db: D1Database,
+  now: Date
+): Promise<PdfJob[]> {
+  const result = await db
+    .prepare(
+      `SELECT id, user_hash, reservation_id, anthropic_file_id, status,
+              created_at, expires_at
+       FROM pdf_jobs
+       WHERE expires_at <= ?1 AND status <> 'deleted'
+       ORDER BY expires_at ASC
+       LIMIT 25`
+    )
+    .bind(now.toISOString())
+    .all<PdfJobRow>();
+  return result.results.map(fromRow);
+}
+
+export async function deleteExpiredPdfJobRows(
+  db: D1Database,
+  now: Date
+): Promise<number> {
+  const result = await db
+    .prepare("DELETE FROM pdf_jobs WHERE expires_at <= ?1 AND status = 'deleted'")
+    .bind(now.toISOString())
+    .run();
+  return result.meta.changes ?? 0;
 }
 
 export function validatePdfMetadata(file: { type: string; size: number }): void {

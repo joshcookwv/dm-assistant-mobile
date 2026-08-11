@@ -1,7 +1,6 @@
 import {
   cachedText,
   createPdfJob,
-  deletePdfJob,
   extractPdfJob,
   uploadPdfJob,
 } from "./ai";
@@ -114,28 +113,26 @@ export async function extractFromPdf(
   onStageChange?.("uploading");
   const jobId = await createPdfJob();
 
-  try {
-    await uploadPdfJob(jobId, uri, filename, "application/pdf");
-    onStageChange?.("extracting");
-    const message = await extractPdfJob(jobId, {
-      prompt: "Extract everything from this document.",
-      system: [cachedText(EXTRACTION_SYSTEM_PROMPT)],
-      tools: [EXTRACTION_TOOL],
-      tool_choice: { type: "tool", name: EXTRACTION_TOOL_NAME },
-    });
+  await uploadPdfJob(jobId, uri, filename, "application/pdf");
+  onStageChange?.("extracting");
+  const message = await extractPdfJob(jobId, {
+    prompt: "Extract everything from this document.",
+    system: [cachedText(EXTRACTION_SYSTEM_PROMPT)],
+    tools: [EXTRACTION_TOOL],
+    tool_choice: { type: "tool", name: EXTRACTION_TOOL_NAME },
+  });
 
-    const toolUse = message.content.find((block: any) => block.type === "tool_use");
-    const input = toolUse?.input ?? {};
-    return {
-      npcs: Array.isArray(input.npcs) ? input.npcs : [],
-      monsters: Array.isArray(input.monsters) ? input.monsters : [],
-      rules: Array.isArray(input.rules) ? input.rules : [],
-      truncated: message.stop_reason === "max_tokens",
-    };
-  } finally {
+  const toolUse = message.content.find((block: any) => block.type === "tool_use");
+  const input = toolUse?.input ?? {};
+  return {
+    npcs: Array.isArray(input.npcs) ? input.npcs : [],
+    monsters: Array.isArray(input.monsters) ? input.monsters : [],
+    rules: Array.isArray(input.rules) ? input.rules : [],
+    truncated: message.stop_reason === "max_tokens",
+  };
+  /* Worker terminal handling deletes the upstream file and retries failures.
     // The file is only ever needed for this one extraction call — clean it
     // up so repeated imports don't silently accumulate storage. Best-effort:
     // a failed delete shouldn't mask the extraction's actual result/error.
-    void deletePdfJob(jobId);
-  }
+    Client-side deletion is intentionally not part of the reliability path. */
 }

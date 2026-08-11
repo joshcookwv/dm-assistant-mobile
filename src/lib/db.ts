@@ -168,6 +168,22 @@ function initSchema(db: SQLite.SQLiteDatabase) {
       notes TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    -- Free-form NPC <-> NPC relationship graph (ally, rival, family, etc.),
+    -- manually logged by the DM. Not campaign-scoped, for the same reason
+    -- npcs itself isn't -- the same two NPCs' relationship doesn't change
+    -- depending which campaign you're looking at them from. Stored as one
+    -- directed row (npc_id -> related_npc_id); queries treat it as
+    -- undirected by matching either column.
+    CREATE TABLE IF NOT EXISTS npc_relations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      npc_id INTEGER NOT NULL,
+      related_npc_id INTEGER NOT NULL,
+      relation_type TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 }
 

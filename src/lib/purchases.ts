@@ -10,6 +10,8 @@ import { getClientId } from "./client-id";
 
 const DEBUG_PRO_ACCESS =
   __DEV__ && process.env.EXPO_PUBLIC_DEBUG_PRO_ACCESS?.trim().toLowerCase() === "true";
+const PRO_PRODUCT_ID = "infernal_codex_pro";
+const PRO_BASE_PLAN_ID = "monthly";
 
 let configurePromise: Promise<boolean> | null = null;
 
@@ -99,10 +101,19 @@ export async function getProOfferings(): Promise<PurchasesOfferings | null> {
 export function monthlyPackages(offerings: PurchasesOfferings | null): PurchasesPackage[] {
   const defaultOffering = offerings?.all.default;
   if (!defaultOffering) return [];
-  return defaultOffering.availablePackages.filter(
-    (aPackage) =>
-      aPackage.identifier === "$rc_monthly" || aPackage.packageType === PACKAGE_TYPE.MONTHLY
-  );
+  const approved = defaultOffering.availablePackages.find((aPackage) => {
+    const product = aPackage.product;
+    const option = product.defaultOption;
+    const [productId, basePlanId] = product.identifier.split(":", 2);
+    return (
+      aPackage.packageType === PACKAGE_TYPE.MONTHLY &&
+      product.subscriptionPeriod === "P1M" &&
+      productId === PRO_PRODUCT_ID &&
+      (basePlanId ?? option?.id) === PRO_BASE_PLAN_ID &&
+      (!option || option.productId === PRO_PRODUCT_ID)
+    );
+  });
+  return approved ? [approved] : [];
 }
 
 export async function activateReviewerAccess(code: string): Promise<CustomerInfo> {

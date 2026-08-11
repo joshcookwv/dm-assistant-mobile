@@ -3,6 +3,7 @@ export const STANDARD_OUTPUT_TOKEN_LIMIT = 800;
 export const PDF_OUTPUT_TOKEN_LIMIT = 8192;
 export const ALLOWED_MODEL = "claude-haiku-4-5-20251001";
 export const FILES_BETA = "files-api-2025-04-14";
+export const MULTIPART_OVERHEAD_LIMIT_BYTES = 512 * 1024;
 
 export class RequestValidationError extends Error {
   constructor(
@@ -19,13 +20,74 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export async function readBoundedJson(request: Request, maxBytes: number): Promise<unknown> {
-  const declaredLength = Number(request.headers.get("content-length"));
-  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
-    throw new RequestValidationError("body_too_large", 413, "Request body is too large.");
+function requireContentType(request: Request, expected: string): void {
+  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
+  const mediaType = contentType.split(";", 1)[0].trim();
+  if (mediaType !== expected) {
+    throw new RequestValidationError(
+      "unsupported_media_type",
+      415,
+      `Content-Type must be ${expected}.`
+    );
   }
-  const text = await request.text();
-  if (new TextEncoder().encode(text).byteLength > maxBytes) {
+}
+
+export function requireJsonContentType(request: Request): void {
+  requireContentType(request, "application/json");
+}
+
+export function requireMultipartContentType(request: Request): void {
+  requireContentType(request, "multipart/form-data");
+}
+
+export async function readBoundedBytes(
+  request: Request,
+  maxBytes: number
+): Promise<Uint8Array> {
+  const rawLength = request.headers.get("content-length");
+  if (rawLength !== null) {
+    const declaredLength = Number(rawLength);
+    if (!Number.isFinite(declaredLength) || declaredLength < 0) {
+      throw new RequestValidationError("invalid_length", 400, "Content-Length is invalid.");
+    }
+    if (declaredLength > maxBytes) {
+      throw new RequestValidationError("body_too_large", 413, "Request body is too large.");
+    }
+  }
+
+  if (!request.body) return new Uint8Array();
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new RequestValidationError("body_too_large", 413, "Request body is too large.");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+export async function readBoundedJson(request: Request, maxBytes: number): Promise<unknown> {
+  requireJsonContentType(request);
+  const bytes = await readBoundedBytes(request, maxBytes);
+  const text = new TextDecoder().decode(bytes);
+  if (bytes.byteLength > maxBytes) {
     throw new RequestValidationError("body_too_large", 413, "Request body is too large.");
   }
   try {
@@ -33,6 +95,23 @@ export async function readBoundedJson(request: Request, maxBytes: number): Promi
   } catch {
     throw new RequestValidationError("invalid_json", 400, "Request body must be valid JSON.");
   }
+}
+
+export async function readBoundedFormData(
+  request: Request,
+  maxFileBytes: number
+): Promise<FormData> {
+  requireMultipartContentType(request);
+  const bytes = await readBoundedBytes(
+    request,
+    maxFileBytes + MULTIPART_OVERHEAD_LIMIT_BYTES
+  );
+  const boundedRequest = new Request(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body: bytes.buffer as ArrayBuffer,
+  });
+  return boundedRequest.formData();
 }
 
 export function validateBetaHeader(raw: string | null, allowFiles: boolean): string | undefined {

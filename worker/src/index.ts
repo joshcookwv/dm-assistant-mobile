@@ -7,6 +7,8 @@ import { cleanupExpired } from "./cleanup";
 import { hashCustomerId } from "./identity";
 import { recordUsage, usageFromResponseBody } from "./metrics";
 import {
+  claimPdfExtraction,
+  claimPdfUpload,
   completePdfJob,
   createPdfJob,
   failPdfJob,
@@ -26,7 +28,10 @@ import {
   PDF_OUTPUT_TOKEN_LIMIT,
   RequestValidationError,
   STANDARD_BODY_LIMIT_BYTES,
+  readBoundedFormData,
   readBoundedJson,
+  requireJsonContentType,
+  requireMultipartContentType,
   validateBetaHeader,
   validatePdfExtractionRequest,
   validateStandardRequest,
@@ -144,6 +149,7 @@ async function handleMessages(request: Request, env: Env): Promise<Response> {
     return jsonResponse({ error: "method_not_allowed", message: "Use POST." }, 405);
   }
 
+  requireJsonContentType(request);
   validateBetaHeader(request.headers.get("anthropic-beta"), false);
   const body = validateStandardRequest(
     await readBoundedJson(request, STANDARD_BODY_LIMIT_BYTES)
@@ -159,32 +165,30 @@ async function handleMessages(request: Request, env: Env): Promise<Response> {
     );
   }
 
-  let upstream: Response;
+  let upstream: Response | undefined;
   try {
     upstream = await sendAnthropicMessage(body, env);
+    if (!upstream.ok) {
+      await upstream.body?.cancel();
+      throw new Error("Anthropic request was unsuccessful.");
+    }
+    const responseBody = await upstream.text();
+    await recordUsageSafely(env, "standard", responseBody, false);
+    await completeReservation(env.DB, reservation.reservationId);
+    return new Response(responseBody, {
+      status: 200,
+      headers: {
+        "content-type": upstream.headers.get("content-type") ?? "application/json",
+        ...corsHeaders(),
+        ...creditHeaders(reservation.credits),
+      },
+    });
   } catch {
+    await upstream?.body?.cancel().catch(() => undefined);
     await recordUsageSafely(env, "standard", undefined, true);
     await refundCredits(env.DB, reservation.reservationId);
     return upstreamError(await getCreditState(env.DB, userHash, new Date()));
   }
-  if (!upstream.ok) {
-    await upstream.body?.cancel();
-    await recordUsageSafely(env, "standard", undefined, true);
-    await refundCredits(env.DB, reservation.reservationId);
-    return upstreamError(await getCreditState(env.DB, userHash, new Date()));
-  }
-
-  const responseBody = await upstream.text();
-  await recordUsageSafely(env, "standard", responseBody, false);
-  await completeReservation(env.DB, reservation.reservationId);
-  return new Response(responseBody, {
-    status: 200,
-    headers: {
-      "content-type": upstream.headers.get("content-type") ?? "application/json",
-      ...corsHeaders(),
-      ...creditHeaders(reservation.credits),
-    },
-  });
 }
 
 async function handleCreatePdfJob(request: Request, env: Env): Promise<Response> {
@@ -229,24 +233,40 @@ async function refundFailedPdfJob(
   return getCreditState(env.DB, userHash, new Date());
 }
 
+async function deletePdfFileSafely(fileId: string, env: Env): Promise<boolean> {
+  try {
+    const upstream = await deleteAnthropicFile(fileId, env);
+    const deleted = upstream.ok || upstream.status === 404;
+    await upstream.body?.cancel();
+    return deleted;
+  } catch {
+    return false;
+  }
+}
+
+async function cleanupPdfFileSafely(
+  env: Env,
+  jobId: string,
+  userHash: string,
+  fileId: string | null
+): Promise<boolean> {
+  if (!fileId || !(await deletePdfFileSafely(fileId, env))) return false;
+  await markPdfDeleted(env.DB, jobId, userHash);
+  return true;
+}
+
 async function handlePdfUpload(
   request: Request,
   env: Env,
   jobId: string,
   userHash: string
 ): Promise<Response> {
-  const job = await requirePdfJob(env, jobId, userHash);
-  if (job.status !== "created") {
-    throw new RequestValidationError(
-      "pdf_job_invalid",
-      409,
-      "PDF job cannot accept an upload."
-    );
-  }
+  await requirePdfJob(env, jobId, userHash);
+  await claimPdfUpload(env.DB, jobId, userHash);
 
   let file: File;
   try {
-    const form = await request.formData();
+    const form = await readBoundedFormData(request, 25 * 1024 * 1024);
     const candidate = form.get("file");
     if (!(candidate instanceof File)) {
       throw new RequestValidationError("invalid_pdf", 400, "A PDF file is required.");
@@ -262,29 +282,25 @@ async function handlePdfUpload(
     );
   }
 
-  let upstream: Response;
-  try {
-    upstream = await uploadAnthropicPdf(file, env);
-  } catch {
-    return upstreamError(await refundFailedPdfJob(env, jobId, userHash));
-  }
-  if (!upstream.ok) {
-    await upstream.body?.cancel();
-    return upstreamError(await refundFailedPdfJob(env, jobId, userHash));
-  }
-
+  let upstream: Response | undefined;
   let fileId: string | undefined;
   try {
+    upstream = await uploadAnthropicPdf(file, env);
+    if (!upstream.ok) {
+      await upstream.body?.cancel();
+      throw new Error("Anthropic upload was unsuccessful.");
+    }
     const body = await upstream.json<{ id?: unknown }>();
     fileId = typeof body.id === "string" && body.id ? body.id : undefined;
+    if (!fileId) throw new Error("Anthropic upload response omitted the file ID.");
+    await recordPdfUpload(env.DB, jobId, userHash, fileId);
   } catch {
-    fileId = undefined;
-  }
-  if (!fileId) {
-    return upstreamError(await refundFailedPdfJob(env, jobId, userHash));
+    await upstream?.body?.cancel().catch(() => undefined);
+    const credits = await refundFailedPdfJob(env, jobId, userHash);
+    if (fileId) await cleanupPdfFileSafely(env, jobId, userHash, fileId);
+    return upstreamError(credits);
   }
 
-  await recordPdfUpload(env.DB, jobId, userHash, fileId);
   const credits = await getCreditState(env.DB, userHash, new Date());
   return jsonResponse({ status: "uploaded" }, 200, creditHeaders(credits));
 }
@@ -295,10 +311,8 @@ async function handlePdfExtraction(
   jobId: string,
   userHash: string
 ): Promise<Response> {
-  const job = await requirePdfJob(env, jobId, userHash);
-  if (job.status !== "uploaded" || !job.anthropicFileId) {
-    throw new RequestValidationError("pdf_job_invalid", 409, "PDF job is not ready.");
-  }
+  await requirePdfJob(env, jobId, userHash);
+  const job = await claimPdfExtraction(env.DB, jobId, userHash);
 
   let extractionRequest: ReturnType<typeof validatePdfExtractionRequest>;
   try {
@@ -307,6 +321,7 @@ async function handlePdfExtraction(
     );
   } catch (error) {
     const credits = await refundFailedPdfJob(env, jobId, userHash);
+    await cleanupPdfFileSafely(env, jobId, userHash, job.anthropicFileId);
     if (error instanceof RequestValidationError) return errorResponse(error, credits);
     throw error;
   }
@@ -335,31 +350,33 @@ async function handlePdfExtraction(
     ],
   };
 
-  let upstream: Response;
+  let upstream: Response | undefined;
   try {
     upstream = await sendAnthropicMessage(body, env, FILES_BETA);
+    if (!upstream.ok) {
+      await upstream.body?.cancel();
+      throw new Error("Anthropic extraction was unsuccessful.");
+    }
+    const responseBody = await upstream.text();
+    await recordUsageSafely(env, "pdf_import", responseBody, false);
+    await completePdfJob(env.DB, jobId, userHash);
+    await cleanupPdfFileSafely(env, jobId, userHash, job.anthropicFileId);
+    const credits = await getCreditState(env.DB, userHash, new Date());
+    return new Response(responseBody, {
+      status: 200,
+      headers: {
+        "content-type": upstream.headers.get("content-type") ?? "application/json",
+        ...corsHeaders(),
+        ...creditHeaders(credits),
+      },
+    });
   } catch {
+    await upstream?.body?.cancel().catch(() => undefined);
     await recordUsageSafely(env, "pdf_import", undefined, true);
-    return upstreamError(await refundFailedPdfJob(env, jobId, userHash));
+    const credits = await refundFailedPdfJob(env, jobId, userHash);
+    await cleanupPdfFileSafely(env, jobId, userHash, job.anthropicFileId);
+    return upstreamError(credits);
   }
-  if (!upstream.ok) {
-    await upstream.body?.cancel();
-    await recordUsageSafely(env, "pdf_import", undefined, true);
-    return upstreamError(await refundFailedPdfJob(env, jobId, userHash));
-  }
-
-  const responseBody = await upstream.text();
-  await recordUsageSafely(env, "pdf_import", responseBody, false);
-  await completePdfJob(env.DB, jobId, userHash);
-  const credits = await getCreditState(env.DB, userHash, new Date());
-  return new Response(responseBody, {
-    status: 200,
-    headers: {
-      "content-type": upstream.headers.get("content-type") ?? "application/json",
-      ...corsHeaders(),
-      ...creditHeaders(credits),
-    },
-  });
 }
 
 async function handlePdfDelete(
@@ -378,21 +395,12 @@ async function handlePdfDelete(
     throw new RequestValidationError("pdf_job_invalid", 409, "PDF file is not available.");
   }
 
-  let upstream: Response;
-  try {
-    upstream = await deleteAnthropicFile(job.anthropicFileId, env);
-  } catch {
-    return upstreamError(await getCreditState(env.DB, userHash, new Date()));
-  }
-  if (!upstream.ok) {
-    await upstream.body?.cancel();
-    return upstreamError(await getCreditState(env.DB, userHash, new Date()));
-  }
-  await upstream.body?.cancel();
   if (job.status === "uploaded") {
     await failPdfJob(env.DB, jobId, userHash);
   }
-  await markPdfDeleted(env.DB, jobId, userHash);
+  if (!(await cleanupPdfFileSafely(env, jobId, userHash, job.anthropicFileId))) {
+    return upstreamError(await getCreditState(env.DB, userHash, new Date()));
+  }
   const credits = await getCreditState(env.DB, userHash, new Date());
   return jsonResponse({ status: "deleted" }, 200, creditHeaders(credits));
 }
@@ -401,6 +409,7 @@ async function handleReport(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") {
     return jsonResponse({ error: "method_not_allowed", message: "Use POST." }, 405);
   }
+  requireJsonContentType(request);
   const report = validateReportInput(
     await readBoundedJson(request, STANDARD_BODY_LIMIT_BYTES)
   );
@@ -439,12 +448,14 @@ async function handlePdfRoute(
   const userHash = await authenticate(request, env);
 
   if (action === "file" && request.method === "PUT") {
+    requireMultipartContentType(request);
     return handlePdfUpload(request, env, jobId, userHash);
   }
   if (action === "file" && request.method === "DELETE") {
     return handlePdfDelete(env, jobId, userHash);
   }
   if (action === "extract" && request.method === "POST") {
+    requireJsonContentType(request);
     return handlePdfExtraction(request, env, jobId, userHash);
   }
   return jsonResponse({ error: "method_not_allowed", message: "Method not allowed." }, 405);
@@ -496,6 +507,6 @@ export default {
     }
   },
   scheduled(_controller, env, ctx): void {
-    ctx.waitUntil(cleanupExpired(env.DB, new Date()));
+    ctx.waitUntil(cleanupExpired(env, new Date()));
   },
 } satisfies ExportedHandler<Env>;

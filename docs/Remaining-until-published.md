@@ -33,7 +33,7 @@ This is the authoritative release checklist. Check an item only after fresh evid
 - [x] Drawer scrim, Android Back, and repeated drawer navigation pass native manual checks. Evidence: Android emulator `emulator-5556`, all nine drawer destinations plus scrim and Back checks, August 11, 2026.
 - [x] Campaign PC Name, Max HP, and Armor Class validation has passing regression tests. Evidence: `campaign-validation.test.ts`, August 11, 2026.
 - [x] Opening New Campaign creates no record until explicit submission; automated regression coverage passes. Native cancellation check remains pending. Evidence: `new-campaign.test.tsx`, August 11, 2026.
-- [x] Full app unit test suite passes. Evidence: 11 suites, 31 tests, August 11, 2026.
+- [x] Full app unit test suite passes. Evidence: 12 suites, 33 tests, August 11, 2026.
 - [x] App TypeScript passes after the regression-test changes. Evidence: `npx tsc --noEmit`, August 11, 2026.
 - [x] App lint completes with zero errors after the regression-test changes. Evidence: `npm run lint`, August 11, 2026; 12 pre-existing asset-import warnings remain.
 - [x] Expo Doctor passes all checks. Evidence: 21 of 21 checks, August 11, 2026.
@@ -48,11 +48,14 @@ This is the authoritative release checklist. Check an item only after fresh evid
 - [x] Daily credit reservation is atomic under concurrent requests. Evidence: 20 simultaneous D1 reservations yielded 10 allowed, 10 denied, and 10 stored credits, August 11, 2026.
 - [x] Standard AI costs 1 credit and is capped at 800 output tokens. Evidence: request validation and protected-route tests, August 11, 2026.
 - [x] PDF import is protected as one 5-credit job, capped at 25 MB and 8,192 output tokens. Evidence: PDF bounds, state, and full route-flow tests, August 11, 2026.
+- [x] Concurrent PDF upload/extraction retries are atomically claimed before Anthropic, so one job can produce only one paid upstream call. Evidence: simultaneous upload/extraction regression tests each record exactly one Anthropic call, August 11, 2026.
+- [x] PDF files are deleted by the Worker on success/failure; 404 is idempotent success and scheduled cleanup retains failed deletions for retry. Evidence: terminal-flow and two-pass cleanup tests, August 11, 2026.
+- [x] JSON and multipart bodies are streamed through hard limits before materialization and unsupported content types return 415. Evidence: streaming-bound and protected-route tests, August 11, 2026.
 - [x] Validation, entitlement, health, report, cleanup, and unsuccessful upstream paths consume 0 credits. Evidence: route ordering plus validation, refund, reporting, and cleanup tests, August 11, 2026.
 - [x] Quota exhaustion returns HTTP 429 with remaining credits and UTC reset time. Evidence: protected message route test, August 11, 2026.
 - [x] Unsupported models, beta headers, file blocks on standard messages, oversized bodies, and invalid request shapes are rejected before upstream work. Evidence: bounded-validation and zero-upstream-call route tests, August 11, 2026.
 - [x] Worker logs contain no prompts, PDF contents, generated output, raw customer IDs, secrets, or reviewer credentials. Evidence: structured error logging contains method, route path, and error class only; verified in Worker source, August 11, 2026.
-- [x] Worker quota, identity, entitlement, message, PDF, report, metric, and cleanup tests and TypeScript pass. Evidence: 8 files/43 tests and both production/test TypeScript projects, August 11, 2026.
+- [x] Worker quota, identity, entitlement, message, PDF, report, metric, and cleanup tests and TypeScript pass. Evidence: 8 files/50 tests and both production/test TypeScript projects, August 11, 2026.
 - [x] Worker production dependency audit reports zero vulnerabilities. Evidence: `npm audit --omit=dev`, August 11, 2026.
 
 ## AI-output reporting and cost controls
@@ -69,7 +72,7 @@ This is the authoritative release checklist. Check an item only after fresh evid
 ## RevenueCat and monthly subscription
 
 - [ ] Android RevenueCat public SDK key and entitlement ID are configured through EAS production variables.
-- [x] Pro screen displays only the monthly package from RevenueCat's `default` offering. Evidence: `monthlyPackages` and Pro screen tests, August 11, 2026.
+- [x] Pro screen accepts exactly one `infernal_codex_pro` / `monthly` package from RevenueCat's `default` offering and rejects stale/duplicate products. Evidence: `monthlyPackages` and Pro screen tests, August 11, 2026.
 - [x] Pro screen explains monthly auto-renewal, Google Play cancellation/management, free-app availability, 10 daily credits, 1/5 credit costs, restore, privacy, and licensing. Evidence: `pro-copy.test.tsx`, August 11, 2026.
 - [x] Purchase cancellation is not shown as an error. Evidence: RevenueCat `userCancelled` regression test, August 11, 2026; store sandbox validation remains part of the purchase-state checklist.
 - [ ] Google Play product `infernal_codex_pro` with base plan `monthly` is active in the United States at $4.99/month.
@@ -95,7 +98,7 @@ This is the authoritative release checklist. Check an item only after fresh evid
 
 ## Production infrastructure and build
 
-- [x] Cloudflare D1 database is created in US jurisdiction and production migrations are applied. Evidence: live Cloudflare API creation and schema query returned all six expected empty tables, August 11, 2026; database ID is recorded in `worker/wrangler.toml`.
+- [x] Cloudflare D1 database is created in US jurisdiction and production migrations are applied. Evidence: live Cloudflare API schema query returned all six expected empty tables, the atomic PDF lifecycle migration, no foreign-key violations, and both migration filenames recorded in `d1_migrations`, August 11, 2026; database ID is recorded in `worker/wrangler.toml`.
 - [ ] Worker secrets `ANTHROPIC_API_KEY`, `REVENUECAT_SECRET_API_KEY`, and `USER_HASH_SECRET` are configured without being printed or written to disk.
 - [ ] Worker is deployed and `/health` returns status `ok`.
 - [ ] Unauthorized AI and report smoke tests are rejected and D1 contains no raw identifiers or prompt content.

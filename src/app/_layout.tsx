@@ -186,6 +186,10 @@ export default function RootLayout() {
             };
           }}
         />
+        <Drawer.Screen
+          name="paywall"
+          options={{ headerShown: false, swipeEnabled: false, drawerItemStyle: { height: 0 } }}
+        />
           </Drawer>
         </SafeAreaView>
         </GestureHandlerRootView>

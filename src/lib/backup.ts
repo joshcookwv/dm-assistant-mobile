@@ -6,15 +6,23 @@ import { getDb } from "./db";
 const BACKUP_FORMAT = "campaign-backup";
 const BACKUP_VERSION = 1;
 
-// Order matters for restore: sessions before session_members, since a member
-// references its parent session's id. No declared foreign keys exist in the
-// schema, so this is a data-integrity convention, not something SQLite enforces.
+// Order matters for restore: sessions before session_members, campaigns
+// before its child tables, and campaign_locations/campaign_sessions before
+// npc_appearances, since these reference each other's ids. No declared
+// foreign keys exist in the schema, so this is a data-integrity convention,
+// not something SQLite enforces.
 const BACKUP_TABLES = [
+  "campaigns",
+  "campaign_pcs",
+  "campaign_locations",
+  "campaign_sessions",
   "npcs",
   "notes",
   "encounters",
   "maps",
   "bestiary",
+  "npc_appearances",
+  "npc_relations",
   "sessions",
   "session_members",
   "settings",
@@ -38,6 +46,7 @@ export interface BackupCounts {
   bestiary: number;
   sessions: number;
   sessionMembers: number;
+  campaigns: number;
 }
 
 function mapsDirUri(): string {
@@ -53,6 +62,7 @@ function countsFromTables(tables: BackupPayload["tables"]): BackupCounts {
     bestiary: tables.bestiary?.length ?? 0,
     sessions: tables.sessions?.length ?? 0,
     sessionMembers: tables.session_members?.length ?? 0,
+    campaigns: tables.campaigns?.length ?? 0,
   };
 }
 

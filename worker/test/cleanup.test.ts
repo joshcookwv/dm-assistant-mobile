@@ -1,9 +1,11 @@
 import { env } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { cleanupExpired } from "../src/cleanup";
 
 describe("retention cleanup", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it("removes expired reports/jobs and only usage data older than two days", async () => {
     await env.DB.batch([
       env.DB.prepare(
@@ -48,7 +50,7 @@ describe("retention cleanup", () => {
       ),
     ]);
 
-    const result = await cleanupExpired(env.DB, new Date("2026-08-11T05:00:00.000Z"));
+    const result = await cleanupExpired(env, new Date("2026-08-11T05:00:00.000Z"));
     expect(result).toEqual({
       reports: 1,
       pdfJobs: 1,
@@ -69,5 +71,46 @@ describe("retention cleanup", () => {
     await expect(
       env.DB.prepare("SELECT user_hash FROM report_usage WHERE user_hash = 'fresh-reports'").first()
     ).resolves.not.toBeNull();
+  });
+
+  it("retains an expired PDF cleanup record until upstream deletion succeeds", async () => {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO quota_usage (user_hash, day_utc, credits_used, updated_at)
+         VALUES ('retry-cleanup-user', '2026-08-08', 5, '2026-08-08T01:00:00.000Z')`
+      ),
+      env.DB.prepare(
+        `INSERT INTO quota_reservations
+          (id, user_hash, day_utc, credits, kind, status, created_at, expires_at)
+         VALUES ('retry-cleanup-reservation', 'retry-cleanup-user', '2026-08-08', 5,
+                 'pdf', 'completed', '2026-08-08T01:00:00.000Z',
+                 '2026-08-09T00:00:00.000Z')`
+      ),
+      env.DB.prepare(
+        `INSERT INTO pdf_jobs
+          (id, user_hash, reservation_id, anthropic_file_id, status, created_at, expires_at)
+         VALUES ('retry-cleanup-job', 'retry-cleanup-user', 'retry-cleanup-reservation',
+                 'file_retry_cleanup', 'completed', '2026-08-08T01:00:00.000Z',
+                 '2026-08-11T05:00:00.000Z')`
+      ),
+    ]);
+    const deleteFetch = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ error: "overloaded" }, { status: 503 }))
+      .mockResolvedValueOnce(Response.json({ error: "not_found" }, { status: 404 }));
+    vi.stubGlobal("fetch", deleteFetch);
+
+    const first = await cleanupExpired(env, new Date("2026-08-11T05:00:00.000Z"));
+    expect(first.pdfJobs).toBe(0);
+    await expect(
+      env.DB.prepare("SELECT status FROM pdf_jobs WHERE id = 'retry-cleanup-job'").first()
+    ).resolves.toEqual({ status: "completed" });
+
+    const second = await cleanupExpired(env, new Date("2026-08-11T05:00:01.000Z"));
+    expect(second.pdfJobs).toBe(1);
+    await expect(
+      env.DB.prepare("SELECT status FROM pdf_jobs WHERE id = 'retry-cleanup-job'").first()
+    ).resolves.toBeNull();
+    expect(deleteFetch).toHaveBeenCalledTimes(2);
   });
 });

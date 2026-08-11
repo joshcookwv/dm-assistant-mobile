@@ -40,6 +40,10 @@ describe("AI credit response contract", () => {
       },
       {
         "x-ai-credits-limit": "10",
+        "x-ai-credits-reset": "2026-08-12T00:00:00.000Z",
+      },
+      {
+        "x-ai-credits-limit": "10",
         "x-ai-credits-remaining": "11",
         "x-ai-credits-reset": "2026-08-12T00:00:00.000Z",
       },

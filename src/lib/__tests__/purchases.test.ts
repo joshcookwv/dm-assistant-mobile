@@ -25,19 +25,51 @@ jest.mock("react-native-purchases", () => ({
   PACKAGE_TYPE: { MONTHLY: "MONTHLY" },
 }));
 
-function aPackage(identifier: string, packageType: PACKAGE_TYPE): PurchasesPackage {
-  return { identifier, packageType } as PurchasesPackage;
+function aPackage(
+  identifier: string,
+  packageType: PACKAGE_TYPE,
+  productIdentifier = "infernal_codex_pro:monthly",
+  subscriptionPeriod: string | null = "P1M"
+): PurchasesPackage {
+  return {
+    identifier,
+    packageType,
+    product: {
+      identifier: productIdentifier,
+      subscriptionPeriod,
+      defaultOption: {
+        id: "monthly",
+        productId: "infernal_codex_pro",
+        storeProductId: "infernal_codex_pro:monthly",
+      },
+    },
+  } as PurchasesPackage;
 }
 
 describe("monthlyPackages", () => {
-  it("returns monthly packages from the default offering only", () => {
+  it("returns only the approved monthly Play product from the default offering", () => {
     const predefinedMonthly = aPackage("$rc_monthly", "MONTHLY" as PACKAGE_TYPE);
-    const customMonthly = aPackage("monthly_custom", "MONTHLY" as PACKAGE_TYPE);
-    const annual = aPackage("$rc_annual", "ANNUAL" as PACKAGE_TYPE);
+    const staleMonthly = aPackage(
+      "monthly_custom",
+      "MONTHLY" as PACKAGE_TYPE,
+      "retired_pro:monthly"
+    );
+    const wrongBasePlan = aPackage(
+      "monthly_legacy",
+      "MONTHLY" as PACKAGE_TYPE,
+      "infernal_codex_pro:legacy"
+    );
+    const annual = aPackage(
+      "$rc_annual",
+      "ANNUAL" as PACKAGE_TYPE,
+      "infernal_codex_pro:annual",
+      "P1Y"
+    );
+    const duplicate = aPackage("monthly_duplicate", "MONTHLY" as PACKAGE_TYPE);
     const otherOfferingMonthly = aPackage("other_monthly", "MONTHLY" as PACKAGE_TYPE);
     const defaultOffering = {
       identifier: "default",
-      availablePackages: [predefinedMonthly, customMonthly, annual],
+      availablePackages: [predefinedMonthly, staleMonthly, wrongBasePlan, annual, duplicate],
     };
     const offerings = {
       current: defaultOffering,
@@ -47,7 +79,7 @@ describe("monthlyPackages", () => {
       },
     } as unknown as PurchasesOfferings;
 
-    expect(monthlyPackages(offerings)).toEqual([predefinedMonthly, customMonthly]);
+    expect(monthlyPackages(offerings)).toEqual([predefinedMonthly]);
   });
 
   it("returns no packages when the default offering is absent", () => {

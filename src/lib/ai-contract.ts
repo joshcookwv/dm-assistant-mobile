@@ -17,9 +17,12 @@ export class AiRequestError extends Error {
 }
 
 export function parseCreditHeaders(headers: Headers): AiCreditState | null {
-  const limit = Number(headers.get("x-ai-credits-limit"));
-  const remaining = Number(headers.get("x-ai-credits-remaining"));
-  const resetAt = headers.get("x-ai-credits-reset") ?? "";
+  const rawLimit = headers.get("x-ai-credits-limit");
+  const rawRemaining = headers.get("x-ai-credits-remaining");
+  const resetAt = headers.get("x-ai-credits-reset");
+  if (rawLimit === null || rawRemaining === null || resetAt === null) return null;
+  const limit = Number(rawLimit);
+  const remaining = Number(rawRemaining);
   if (
     !Number.isInteger(limit) ||
     limit < 1 ||

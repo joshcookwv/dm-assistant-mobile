@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import worker from "../src/index";
 import { hashCustomerId } from "../src/identity";
 import {
+  claimPdfExtraction,
+  claimPdfUpload,
   completePdfJob,
   createPdfJob,
   failPdfJob,
@@ -65,6 +67,7 @@ describe("PDF job state", () => {
 
   it("records only the upstream file ID for an authorized upload", async () => {
     const created = await createPdfJob(env.DB, "upload-user", TEST_NOW);
+    await claimPdfUpload(env.DB, created.jobId!, "upload-user");
     await recordPdfUpload(env.DB, created.jobId!, "upload-user", "file_123");
 
     await expect(getPdfJob(env.DB, created.jobId!, "upload-user")).resolves.toMatchObject({
@@ -90,10 +93,34 @@ describe("PDF job state", () => {
     });
   });
 
+  it("repairs a failed job whose reservation still needs its idempotent refund", async () => {
+    const userHash = "failed-refund-retry";
+    const created = await createPdfJob(env.DB, userHash, TEST_NOW);
+    await env.DB.prepare("UPDATE pdf_jobs SET status = 'failed' WHERE id = ?1")
+      .bind(created.jobId)
+      .run();
+
+    await failPdfJob(env.DB, created.jobId!, userHash);
+
+    await expect(
+      env.DB.prepare(
+        `SELECT q.credits_used, r.status
+         FROM quota_usage q
+         JOIN quota_reservations r
+           ON r.user_hash = q.user_hash AND r.day_utc = q.day_utc
+         WHERE r.id = (SELECT reservation_id FROM pdf_jobs WHERE id = ?1)`
+      )
+        .bind(created.jobId)
+        .first<{ credits_used: number; status: string }>()
+    ).resolves.toEqual({ credits_used: 0, status: "refunded" });
+  });
+
   it("completes the reservation with a successful extraction", async () => {
     const userHash = "completed-job-user";
     const created = await createPdfJob(env.DB, userHash, TEST_NOW);
+    await claimPdfUpload(env.DB, created.jobId!, userHash);
     await recordPdfUpload(env.DB, created.jobId!, userHash, "file_complete");
+    await claimPdfExtraction(env.DB, created.jobId!, userHash);
 
     await completePdfJob(env.DB, created.jobId!, userHash);
 
@@ -369,15 +396,122 @@ describe("protected PDF routes", () => {
       tool_choice: { type: "tool", name: "record_extracted_content" },
     });
 
-    const deleteResponse = await worker.fetch(
-      new Request(`https://worker.test/v1/pdf-jobs/${created.jobId}/file`, {
-        method: "DELETE",
-        headers: authHeaders("pdf-flow-alias"),
+    const userHash = await hashCustomerId(canonicalId, env.USER_HASH_SECRET);
+    await expect(getPdfJob(env.DB, created.jobId, userHash)).resolves.toMatchObject({
+      status: "deleted",
+    });
+  });
+
+  it("atomically claims concurrent uploads before contacting Anthropic", async () => {
+    const canonicalId = "$RCAnonymousID:concurrent-upload";
+    let uploadCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.startsWith("https://api.revenuecat.com/")) return activeCustomer(canonicalId);
+        if (url === "https://api.anthropic.com/v1/files" && init?.method === "POST") {
+          uploadCalls += 1;
+          await Promise.resolve();
+          return Response.json({ id: "file_concurrent_upload" });
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      })
+    );
+    const createResponse = await worker.fetch(
+      new Request("https://worker.test/v1/pdf-jobs", {
+        method: "POST",
+        headers: authHeaders("concurrent-upload-alias"),
       }),
       env
     );
-    expect(deleteResponse.status).toBe(200);
-    expect(deleteResponse.headers.get("x-ai-credits-remaining")).toBe("5");
-    await deleteResponse.body?.cancel();
+    const created = await createResponse.json<{ jobId: string }>();
+    const upload = () => {
+      const form = new FormData();
+      form.set("file", new File(["%PDF concurrent"], "concurrent.pdf", { type: "application/pdf" }));
+      return worker.fetch(
+        new Request(`https://worker.test/v1/pdf-jobs/${created.jobId}/file`, {
+          method: "PUT",
+          headers: authHeaders("concurrent-upload-alias"),
+          body: form,
+        }),
+        env
+      );
+    };
+
+    const responses = await Promise.all([upload(), upload()]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
+    expect(uploadCalls).toBe(1);
+    await Promise.all(responses.map((response) => response.body?.cancel()));
+  });
+
+  it("atomically claims concurrent extractions and deletes the file once", async () => {
+    const canonicalId = "$RCAnonymousID:concurrent-extract";
+    let extractionCalls = 0;
+    let deleteCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.startsWith("https://api.revenuecat.com/")) return activeCustomer(canonicalId);
+        if (url === "https://api.anthropic.com/v1/files" && init?.method === "POST") {
+          return Response.json({ id: "file_concurrent_extract" });
+        }
+        if (url === "https://api.anthropic.com/v1/messages") {
+          extractionCalls += 1;
+          await Promise.resolve();
+          return Response.json({
+            id: "msg_concurrent_extract",
+            content: [{ type: "text", text: "done" }],
+            usage: { input_tokens: 10, output_tokens: 1 },
+          });
+        }
+        if (
+          url === "https://api.anthropic.com/v1/files/file_concurrent_extract" &&
+          init?.method === "DELETE"
+        ) {
+          deleteCalls += 1;
+          return Response.json({ id: "file_concurrent_extract", type: "file_deleted" });
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      })
+    );
+    const createResponse = await worker.fetch(
+      new Request("https://worker.test/v1/pdf-jobs", {
+        method: "POST",
+        headers: authHeaders("concurrent-extract-alias"),
+      }),
+      env
+    );
+    const created = await createResponse.json<{ jobId: string }>();
+    const form = new FormData();
+    form.set("file", new File(["%PDF concurrent"], "concurrent.pdf", { type: "application/pdf" }));
+    const uploadResponse = await worker.fetch(
+      new Request(`https://worker.test/v1/pdf-jobs/${created.jobId}/file`, {
+        method: "PUT",
+        headers: authHeaders("concurrent-extract-alias"),
+        body: form,
+      }),
+      env
+    );
+    await uploadResponse.body?.cancel();
+    const extract = () =>
+      worker.fetch(
+        new Request(`https://worker.test/v1/pdf-jobs/${created.jobId}/extract`, {
+          method: "POST",
+          headers: {
+            ...authHeaders("concurrent-extract-alias"),
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ prompt: "Extract it." }),
+        }),
+        env
+      );
+
+    const responses = await Promise.all([extract(), extract()]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
+    expect(extractionCalls).toBe(1);
+    expect(deleteCalls).toBe(1);
+    await Promise.all(responses.map((response) => response.body?.cancel()));
   });
 });
