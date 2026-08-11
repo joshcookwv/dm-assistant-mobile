@@ -27,6 +27,22 @@ function creditState(used: number, resetAt: string): CreditState {
   };
 }
 
+export async function getCreditState(
+  db: D1Database,
+  userHash: string,
+  now: Date
+): Promise<CreditState> {
+  const row = await db
+    .prepare(
+      `SELECT credits_used
+       FROM quota_usage
+       WHERE user_hash = ?1 AND day_utc = ?2`
+    )
+    .bind(userHash, utcDay(now))
+    .first<{ credits_used: number }>();
+  return creditState(row?.credits_used ?? 0, nextUtcMidnight(now));
+}
+
 export async function reserveCredits(
   db: D1Database,
   userHash: string,

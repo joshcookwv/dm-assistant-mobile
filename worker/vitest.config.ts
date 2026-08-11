@@ -12,7 +12,15 @@ export default defineConfig({
       const migrations = await readD1Migrations(path.join(import.meta.dirname, "migrations"));
       return {
         wrangler: { configPath: "./wrangler.toml" },
-        miniflare: { bindings: { TEST_MIGRATIONS: migrations } },
+        miniflare: {
+          bindings: {
+            TEST_MIGRATIONS: migrations,
+            ANTHROPIC_API_KEY: "test-anthropic-key",
+            REVENUECAT_SECRET_API_KEY: "test-revenuecat-key",
+            REVENUECAT_ENTITLEMENT_ID: "pro",
+            USER_HASH_SECRET: "test-user-hash-secret",
+          },
+        },
       };
     }),
   ],

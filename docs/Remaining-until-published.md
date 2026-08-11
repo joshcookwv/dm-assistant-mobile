@@ -43,17 +43,17 @@ This is the authoritative release checklist. Check an item only after fresh evid
 ## Cloudflare Worker and D1
 
 - [x] D1 schema contains quota usage, quota reservations, PDF jobs, report usage, AI reports, and aggregate daily metrics. Evidence: local migration applied by both Worker test files, August 11, 2026.
-- [ ] Raw RevenueCat identifiers are transformed with server-side HMAC-SHA-256 and never persisted.
-- [ ] RevenueCat entitlement is verified server-side and canonical customer identity is used for quota.
+- [x] Raw RevenueCat identifiers are transformed with server-side HMAC-SHA-256 and never persisted. Evidence: canonical route test verifies only the keyed hash is stored, August 11, 2026.
+- [x] RevenueCat entitlement is verified server-side and canonical customer identity is used for quota. Evidence: RevenueCat and protected-route tests, August 11, 2026.
 - [x] Daily credit reservation is atomic under concurrent requests. Evidence: 20 simultaneous D1 reservations yielded 10 allowed, 10 denied, and 10 stored credits, August 11, 2026.
-- [ ] Standard AI costs 1 credit and is capped at 800 output tokens.
-- [ ] PDF import is protected as one 5-credit job, capped at 25 MB and 8,192 output tokens.
+- [x] Standard AI costs 1 credit and is capped at 800 output tokens. Evidence: request validation and protected-route tests, August 11, 2026.
+- [x] PDF import is protected as one 5-credit job, capped at 25 MB and 8,192 output tokens. Evidence: PDF bounds, state, and full route-flow tests, August 11, 2026.
 - [ ] Validation, entitlement, health, report, cleanup, and unsuccessful upstream paths consume 0 credits.
-- [ ] Quota exhaustion returns HTTP 429 with remaining credits and UTC reset time.
+- [x] Quota exhaustion returns HTTP 429 with remaining credits and UTC reset time. Evidence: protected message route test, August 11, 2026.
 - [ ] Unsupported models, beta headers, file blocks on standard messages, oversized bodies, and invalid request shapes are rejected before upstream work.
-- [ ] Worker logs contain no prompts, PDF contents, generated output, raw customer IDs, secrets, or reviewer credentials.
-- [x] Worker quota/identity tests and TypeScript pass at the Task 3 checkpoint. Evidence: 2 files/8 tests and both production/test TypeScript projects, August 11, 2026.
-- [ ] Worker production dependency audit reports zero vulnerabilities.
+- [x] Worker logs contain no prompts, PDF contents, generated output, raw customer IDs, secrets, or reviewer credentials. Evidence: structured error logging contains method, route path, and error class only; verified in Worker source, August 11, 2026.
+- [x] Worker quota, identity, entitlement, message, and PDF tests and TypeScript pass. Evidence: 5 files/32 tests and both production/test TypeScript projects, August 11, 2026.
+- [x] Worker production dependency audit reports zero vulnerabilities. Evidence: `npm audit --omit=dev`, August 11, 2026.
 
 ## AI-output reporting and cost controls
 

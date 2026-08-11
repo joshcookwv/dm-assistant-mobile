@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   completeReservation,
+  getCreditState,
   refundCredits,
   reserveCredits,
 } from "../src/quota";
@@ -104,6 +105,12 @@ describe("reservation finalization", () => {
     await refundCredits(env.DB, reservation.reservationId!);
 
     expect(await storedUsage(userHash, "2026-08-11")).toBe(0);
+    await expect(getCreditState(env.DB, userHash, TEST_NOW)).resolves.toEqual({
+      limit: 10,
+      used: 0,
+      remaining: 10,
+      resetAt: "2026-08-12T00:00:00.000Z",
+    });
     const row = await env.DB.prepare(
       "SELECT status FROM quota_reservations WHERE id = ?1"
     )
