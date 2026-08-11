@@ -1,36 +1,28 @@
 name = "dm-assistant-mobile-worker"
 main = "src/index.ts"
-compatibility_date = "2025-01-01"
+compatibility_date = "2026-08-11"
+compatibility_flags = ["nodejs_compat"]
 
-# --- Tunable knobs -----------------------------------------------------
-# Plain vars (not secret) so they're trivial to find/change without
-# touching code — bump these and `wrangler deploy` (or edit in the
-# Cloudflare dashboard) rather than hunting through src/.
+# Nonsecret, intentionally bounded production controls.
 [vars]
-RATE_LIMIT_MAX = 30
-RATE_LIMIT_WINDOW_SECONDS = 86400
+DAILY_CREDIT_LIMIT = 10
+STANDARD_CREDIT_COST = 1
+PDF_CREDIT_COST = 5
 ALLOWED_MODEL = "claude-haiku-4-5-20251001"
 REVENUECAT_ENTITLEMENT_ID = "REPLACE_BEFORE_DEPLOY"
 
-# --- Rate limit counter storage -----------------------------------------
-# Per-client-ID request counts for the 24h quota above, via Workers KV
-# (NOT Cloudflare's native Workers Rate Limiting binding — that binding's
-# `period` field is hard-capped at 10 or 60 seconds, so it cannot express
-# a 24h window at all; see docs/cloudflare-backend-plan.md for the note).
-#
-# `id`/`preview_id` below are placeholders — `wrangler dev` (local mode,
-# the default, no --remote flag) simulates KV locally and never validates
-# these against the real Cloudflare API, so local dev works as-is. Before
-# a REAL deploy, run `wrangler kv namespace create RATE_LIMIT_KV` and
-# replace both ids with the real namespace id it prints. (Deploy is a
-# human-user checkpoint per the plan doc — not done from here.)
-[[kv_namespaces]]
-binding = "RATE_LIMIT_KV"
-id = "REPLACE_BEFORE_DEPLOY_RATE_LIMIT_KV_ID"
-preview_id = "REPLACE_BEFORE_DEPLOY_RATE_LIMIT_KV_ID"
+# Local tests use Miniflare with this binding. Task 11 replaces the zero UUID
+# with the nonsecret production database ID before deployment.
+[[d1_databases]]
+binding = "DB"
+database_name = "infernal-codex"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
 
-# ANTHROPIC_API_KEY is a secret, deliberately not set here:
-#   local dev  -> worker/.dev.vars (gitignored; copy .dev.vars.example)
-#   deployed   -> `wrangler secret put ANTHROPIC_API_KEY` (human-user checkpoint)
-# REVENUECAT_SECRET_API_KEY is also Worker-only and must be supplied through
-# .dev.vars locally / `wrangler secret put` for the deployed Worker.
+# Secrets are never stored here:
+# - ANTHROPIC_API_KEY
+# - REVENUECAT_SECRET_API_KEY
+# - USER_HASH_SECRET (a random 32-byte keyed-hash secret)
+#
+# Local development uses worker/.dev.vars (gitignored). Production uses
+# `wrangler secret put <NAME>` or the Cloudflare secret API.

@@ -42,17 +42,17 @@ This is the authoritative release checklist. Check an item only after fresh evid
 
 ## Cloudflare Worker and D1
 
-- [ ] D1 schema contains quota usage, quota reservations, PDF jobs, report usage, AI reports, and aggregate daily metrics.
+- [x] D1 schema contains quota usage, quota reservations, PDF jobs, report usage, AI reports, and aggregate daily metrics. Evidence: local migration applied by both Worker test files, August 11, 2026.
 - [ ] Raw RevenueCat identifiers are transformed with server-side HMAC-SHA-256 and never persisted.
 - [ ] RevenueCat entitlement is verified server-side and canonical customer identity is used for quota.
-- [ ] Daily credit reservation is atomic under concurrent requests.
+- [x] Daily credit reservation is atomic under concurrent requests. Evidence: 20 simultaneous D1 reservations yielded 10 allowed, 10 denied, and 10 stored credits, August 11, 2026.
 - [ ] Standard AI costs 1 credit and is capped at 800 output tokens.
 - [ ] PDF import is protected as one 5-credit job, capped at 25 MB and 8,192 output tokens.
 - [ ] Validation, entitlement, health, report, cleanup, and unsuccessful upstream paths consume 0 credits.
 - [ ] Quota exhaustion returns HTTP 429 with remaining credits and UTC reset time.
 - [ ] Unsupported models, beta headers, file blocks on standard messages, oversized bodies, and invalid request shapes are rejected before upstream work.
 - [ ] Worker logs contain no prompts, PDF contents, generated output, raw customer IDs, secrets, or reviewer credentials.
-- [ ] Worker tests and TypeScript pass.
+- [x] Worker quota/identity tests and TypeScript pass at the Task 3 checkpoint. Evidence: 2 files/8 tests and both production/test TypeScript projects, August 11, 2026.
 - [ ] Worker production dependency audit reports zero vulnerabilities.
 
 ## AI-output reporting and cost controls
@@ -64,7 +64,7 @@ This is the authoritative release checklist. Check an item only after fresh evid
 - [ ] D1 deletes reports after 30 days and removes obsolete operational rows on schedule.
 - [ ] Daily request/input-token/output-token/error metrics contain no customer identifier or content.
 - [ ] Mobile app displays server-provided credits remaining and reset time; the server remains authoritative.
-- [ ] Initial reduced allowance is verified as 10 daily credits, 1 per standard action, and 5 per PDF import.
+- [x] Initial reduced allowance is verified in D1 as 10 daily credits, 1 per standard action, and 5 per PDF import. Evidence: `quota.test.ts`, August 11, 2026.
 
 ## RevenueCat and monthly subscription
 
