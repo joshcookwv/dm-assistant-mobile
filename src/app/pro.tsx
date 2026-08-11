@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Linking,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import type { PurchasesPackage } from "react-native-purchases";
 
 import { AppIcon } from "@/components/app-icon";
@@ -7,12 +15,28 @@ import { PrimaryButton, SecondaryButton } from "@/components/primary-button";
 import { Colors } from "@/constants/colors";
 import { PRO_FEATURES } from "@/lib/access-policy";
 import {
+  activateReviewerAccess,
   customerHasPro,
   getProOfferings,
+  monthlyPackages,
   purchaseProPackage,
   restoreProPurchases,
 } from "@/lib/purchases";
+import { useAiCredits } from "@/providers/ai-credits";
 import { useProAccess } from "@/providers/pro-access";
+
+const PRIVACY_URL = "https://joshcookwv.github.io/dm-assistant-mobile/privacy/";
+const LICENSES_URL = "https://joshcookwv.github.io/dm-assistant-mobile/licenses/";
+const MANAGE_URL =
+  "https://play.google.com/store/account/subscriptions?package=com.infernalbulldog.dmassistant";
+
+function ExternalLink({ label, url }: { label: string; url: string }) {
+  return (
+    <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(url)} hitSlop={8}>
+      <Text className="text-sm font-semibold text-accent-bright">{label}</Text>
+    </Pressable>
+  );
+}
 
 function purchaseErrorMessage(error: unknown): string | null {
   if (typeof error === "object" && error && "userCancelled" in error && error.userCancelled) {
@@ -23,19 +47,23 @@ function purchaseErrorMessage(error: unknown): string | null {
 
 export default function ProScreen() {
   const { isPro, configured, loading: accessLoading, refresh } = useProAccess();
+  const credits = useAiCredits();
   const [packages, setPackages] = useState<PurchasesPackage[]>([]);
   const [loadingPackages, setLoadingPackages] = useState(true);
   const [busyPackage, setBusyPackage] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewCode, setReviewCode] = useState("");
+  const [reviewBusy, setReviewBusy] = useState(false);
 
   const loadPackages = useCallback(async () => {
     setLoadingPackages(true);
     setError(null);
     try {
       const offerings = await getProOfferings();
-      setPackages(offerings?.current?.availablePackages ?? []);
+      setPackages(monthlyPackages(offerings));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't load purchase options.");
     } finally {
@@ -88,6 +116,27 @@ export default function ProScreen() {
     }
   }
 
+  async function handleReviewerAccess() {
+    setReviewBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const customerInfo = await activateReviewerAccess(reviewCode);
+      setReviewCode("");
+      await refresh();
+      if (customerHasPro(customerInfo)) {
+        setMessage("App review access is active.");
+        setReviewOpen(false);
+      } else {
+        setError("That app review access code does not have active Pro access.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't activate app review access.");
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-5 p-4 pb-10">
       <View className="items-center rounded-3xl border border-accent/40 bg-panel px-5 py-7">
@@ -120,6 +169,19 @@ export default function ProScreen() {
         ))}
       </View>
 
+      <View className="gap-2 rounded-2xl border border-panel-border bg-panel p-5">
+        <Text className="font-bold text-foreground">Shared AI allowance</Text>
+        <Text className="text-sm leading-5 text-muted">
+          Pro includes 10 AI credits per day. A standard AI action uses 1 credit and a PDF import
+          uses 5 credits. Credits reset at midnight UTC.
+        </Text>
+        {credits && (
+          <Text className="text-sm font-bold text-accent-bright">
+            AI credits today: {credits.remaining} of {credits.limit} remaining
+          </Text>
+        )}
+      </View>
+
       {!isPro && (
         <View className="gap-3">
           {loadingPackages ? (
@@ -142,7 +204,9 @@ export default function ProScreen() {
                   )}
                 </View>
                 <Text className="font-bold text-accent-bright">
-                  {busyPackage === aPackage.identifier ? "Working..." : aPackage.product.priceString}
+                  {busyPackage === aPackage.identifier
+                    ? "Working..."
+                    : `${aPackage.product.priceString} / month`}
                 </Text>
               </Pressable>
             ))
@@ -171,9 +235,49 @@ export default function ProScreen() {
       )}
       {message && <Text className="text-center text-sm text-green-400">{message}</Text>}
       {error && <Text className="text-center text-sm text-red-400">{error}</Text>}
-      <Text className="text-center text-xs leading-5 text-muted">
-        Purchases are handled by Google Play. Existing campaigns are never deleted if Pro expires.
-      </Text>
+
+      <View className="gap-3 rounded-2xl border border-panel-border bg-panel p-5">
+        <Text className="text-sm leading-5 text-muted">
+          This subscription renews automatically each month through Google Play until canceled.
+          You can cancel or manage through Google Play at any time. The free app remains available
+          without Pro, and existing campaigns are never deleted if Pro expires.
+        </Text>
+        <View className="flex-row flex-wrap gap-x-5 gap-y-3">
+          <ExternalLink label="Manage subscription" url={MANAGE_URL} />
+          <ExternalLink label="Privacy Policy" url={PRIVACY_URL} />
+          <ExternalLink label="SRD Licensing" url={LICENSES_URL} />
+        </View>
+      </View>
+
+      <View className="border-t border-panel-border pt-4">
+        <Pressable onPress={() => setReviewOpen((open) => !open)} hitSlop={8}>
+          <Text className="text-center text-xs font-semibold text-muted">App review access</Text>
+        </Pressable>
+        {reviewOpen && (
+          <View className="mt-3 gap-3 rounded-2xl border border-panel-border bg-panel p-4">
+            <Text className="text-xs leading-4 text-muted">
+              For authorized Google Play review only. Enter the private access code from the review
+              instructions.
+            </Text>
+            <TextInput
+              value={reviewCode}
+              onChangeText={setReviewCode}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="App review access code"
+              placeholderTextColor={Colors.muted}
+              className="rounded-xl border border-panel-border bg-background px-3 py-3 text-sm text-foreground"
+            />
+            <PrimaryButton
+              label={reviewBusy ? "Activating..." : "Activate review access"}
+              icon="check"
+              onPress={handleReviewerAccess}
+              disabled={reviewBusy || !reviewCode.trim() || !configured}
+            />
+          </View>
+        )}
+      </View>
     </ScrollView>
   );
 }

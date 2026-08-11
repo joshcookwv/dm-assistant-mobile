@@ -63,14 +63,14 @@ This is the authoritative release checklist. Check an item only after fresh evid
 - [x] Reports consume no AI credits and have a separate atomic limit of 10 reports per customer per UTC day. Evidence: 20 concurrent report attempts accept exactly 10; protected route remains at 10 AI credits, August 11, 2026.
 - [x] D1 deletes reports after 30 days and removes obsolete operational rows on schedule. Evidence: cleanup test plus Wrangler daily `0 5 * * *` cron, August 11, 2026.
 - [x] Daily request/input-token/output-token/error metrics contain no customer identifier or content. Evidence: aggregate metric schema and accumulation test, August 11, 2026.
-- [ ] Mobile app displays server-provided credits remaining and reset time; the server remains authoritative.
+- [x] Mobile app displays server-provided credits remaining and reset time; the server remains authoritative. Evidence: response-contract parsing, global credit provider, and Pro screen display, August 11, 2026.
 - [x] Initial reduced allowance is verified in D1 as 10 daily credits, 1 per standard action, and 5 per PDF import. Evidence: `quota.test.ts`, August 11, 2026.
 
 ## RevenueCat and monthly subscription
 
 - [ ] Android RevenueCat public SDK key and entitlement ID are configured through EAS production variables.
-- [ ] Pro screen displays only the monthly package from RevenueCat's `default` offering.
-- [ ] Pro screen explains monthly auto-renewal, Google Play cancellation/management, free-app availability, 10 daily credits, 1/5 credit costs, restore, privacy, and licensing.
+- [x] Pro screen displays only the monthly package from RevenueCat's `default` offering. Evidence: `monthlyPackages` and Pro screen tests, August 11, 2026.
+- [x] Pro screen explains monthly auto-renewal, Google Play cancellation/management, free-app availability, 10 daily credits, 1/5 credit costs, restore, privacy, and licensing. Evidence: `pro-copy.test.tsx`, August 11, 2026.
 - [ ] Purchase cancellation is not shown as an error.
 - [ ] Google Play product `infernal_codex_pro` with base plan `monthly` is active in the United States at $4.99/month.
 - [ ] Dedicated Google service account has only the approved Play, Pub/Sub, and monitoring access.

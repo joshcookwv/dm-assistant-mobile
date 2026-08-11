@@ -1,16 +1,12 @@
 import Purchases, {
   LOG_LEVEL,
+  PACKAGE_TYPE,
   type CustomerInfo,
   type PurchasesOfferings,
   type PurchasesPackage,
 } from "react-native-purchases";
 
 import { getClientId } from "./client-id";
-
-const ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY?.trim() ?? "";
-const TEST_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY?.trim() ?? "";
-export const PRO_ENTITLEMENT_ID =
-  process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID?.trim() ?? "";
 
 const DEBUG_PRO_ACCESS =
   __DEV__ && process.env.EXPO_PUBLIC_DEBUG_PRO_ACCESS?.trim().toLowerCase() === "true";
@@ -25,18 +21,25 @@ export interface ProStatus {
 }
 
 function apiKey(): string {
-  if (__DEV__ && TEST_API_KEY) return TEST_API_KEY;
-  return ANDROID_API_KEY;
+  const androidApiKey = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY?.trim() ?? "";
+  const testApiKey = process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY?.trim() ?? "";
+  if (__DEV__ && testApiKey) return testApiKey;
+  return androidApiKey;
+}
+
+function entitlementId(): string {
+  return process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID?.trim() ?? "";
 }
 
 export function customerHasPro(customerInfo: CustomerInfo): boolean {
-  if (!PRO_ENTITLEMENT_ID) return false;
-  return Boolean(customerInfo.entitlements.active[PRO_ENTITLEMENT_ID]);
+  const id = entitlementId();
+  if (!id) return false;
+  return Boolean(customerInfo.entitlements.active[id]);
 }
 
 export async function ensurePurchasesConfigured(): Promise<boolean> {
   if (DEBUG_PRO_ACCESS) return true;
-  if (!apiKey() || !PRO_ENTITLEMENT_ID) return false;
+  if (!apiKey() || !entitlementId()) return false;
 
   if (!configurePromise) {
     configurePromise = (async () => {
@@ -93,6 +96,25 @@ export async function getProOfferings(): Promise<PurchasesOfferings | null> {
   return Purchases.getOfferings();
 }
 
+export function monthlyPackages(offerings: PurchasesOfferings | null): PurchasesPackage[] {
+  const defaultOffering = offerings?.all.default;
+  if (!defaultOffering) return [];
+  return defaultOffering.availablePackages.filter(
+    (aPackage) =>
+      aPackage.identifier === "$rc_monthly" || aPackage.packageType === PACKAGE_TYPE.MONTHLY
+  );
+}
+
+export async function activateReviewerAccess(code: string): Promise<CustomerInfo> {
+  const appUserId = code.trim();
+  if (!appUserId) throw new Error("Enter the app review access code.");
+  if (!(await ensurePurchasesConfigured())) {
+    throw new Error("Purchases are not configured for this build yet.");
+  }
+  const result = await Purchases.logIn(appUserId);
+  return result.customerInfo;
+}
+
 export async function purchaseProPackage(aPackage: PurchasesPackage): Promise<CustomerInfo> {
   if (!(await ensurePurchasesConfigured())) {
     throw new Error("Purchases are not configured for this build yet.");
@@ -109,7 +131,7 @@ export async function restoreProPurchases(): Promise<CustomerInfo> {
 }
 
 export function addProStatusListener(listener: (customerInfo: CustomerInfo) => void): () => void {
-  if (DEBUG_PRO_ACCESS || !apiKey() || !PRO_ENTITLEMENT_ID) return () => undefined;
+  if (DEBUG_PRO_ACCESS || !apiKey() || !entitlementId()) return () => undefined;
   Purchases.addCustomerInfoUpdateListener(listener);
   return () => {
     Purchases.removeCustomerInfoUpdateListener(listener);
