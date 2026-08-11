@@ -1,5 +1,7 @@
 # Cloudflare Workers AI Proxy — Shared Plan
 
+> **Current product decision — 2026-08-10 (supersedes the historical Phase 1/Addendum text below):** Free has one campaign and no AI. Pro has unlimited campaigns plus shared-proxy NPC name/description generation, campaign summary, session summary, and PDF import. The BYO Anthropic-key field and temporary “Free Shared AI” toggle have been removed. All shared-proxy endpoints now require a RevenueCat entitlement on both the app and Worker sides. Earlier sections remain only as implementation history; do not restore those older access models.
+
 **Read this whole file before doing anything.** It's the shared source of truth for three collaborators (coder, tester, dm-reviewer) working this in parallel. If you change the architecture, update this file so the other two stay in sync.
 
 ## Why
@@ -13,6 +15,7 @@ Today the app calls `https://api.anthropic.com/v1/messages` directly from the de
 - No email/password accounts or login screens. Identity is a random anonymous per-device UUID, nothing more.
 - No cloud sync of campaign data (NPCs/notes/encounters/etc.). Everything about campaigns stays exactly as it is today — 100% on-device SQLite. Only the AI prompt/response payload (which already left the device before, just to Anthropic instead of our own Worker) passes through the Worker, transiently.
 - Don't touch anything in `src/lib/db.ts`, `campaigns.ts`, `backup.ts`, or any other non-AI data path.
+- **Narrow, one-time exception granted 2026-08-10**: `src/lib/notes.ts`'s `buildFtsQuery` crashes the entire Notes search screen on any query containing a period (FTS5 query-syntax character, not stripped like `"`/`^`/`*`/`:` already are) — full-screen Render Error, no recovery without a dev-menu Reload. Found during pre-release validation, high-confidence small mechanical fix identified (wrap each token in quotes + escape embedded quotes, treating input as a literal phrase to FTS5 rather than trying to keep enumerating special characters — more robust than extending the strip-list). Main approved fixing this directly given the severity (production-blocking crash in core functionality) and how contained the fix is. **This is not a general license to fix other non-AI-path bugs found along the way** — those still get filed as separate tasks (see the drawer-navigation bug, `task_9d92d530`, and the PC-form Max HP bug, `task_4b7c05bc`, both deliberately left unfixed and filed instead). Ask main again for anything else outside AI-proxy scope, even something that looks equally obvious.
 
 ## Architecture
 
@@ -90,6 +93,12 @@ Josh confirmed he wants real billing (RevenueCat), not just a free opt-in gate, 
 
 **Sequencing: this is Phase 2, starting only after the current free-proxy + opt-in-toggle work (this doc's original scope) reaches a clean, tested checkpoint.** Don't start building this alongside work already in flight.
 
+## Clarification (2026-08-10): the dev-client build is not the final-report artifact
+
+Caught by coder before it drifted by momentum: the build everyone's been testing against is an `eas build --profile development` — live Metro connection, dev menu, debug tooling. It is **not** the standalone `preview`/`production` `.apk`/`.aab` a real installed user would actually run, and this doc's original punchout list deliberately separated "ongoing AI-feature UX review during the build" from "the final end-to-end APK report, which happens later once fresh `.apk`/`.aab` builds exist."
+
+**Resolution:** the current dev-client-based full pass (dm-reviewer working through PDF import and then the whole app) is genuinely valuable and should proceed as planned — treat it as **pre-release validation**, catching issues cheaply before spending more EAS build credits. But it is not the literal final deliverable. Once it's solid: a fresh `preview`-profile `.apk` build is still needed (another real `eas build`, another checkpoint needing Josh's go-ahead, same as the dev-client build was) before the actual final report happens on that real artifact. Don't let "final report" quietly end up describing the dev-client build by default.
+
 ## Team
 
 - **coder** — builds the Worker + mobile integration above.
@@ -115,3 +124,74 @@ Per the "Free Shared AI toggle now covers PDF import too" update above, coder bu
 - `tsc --noEmit` and lint clean across `worker/` and the app after this round.
 
 **Dev-client build**: authorized per the update above, running now (`eas build --profile development`, backgrounded/polled per the doc's instruction so it doesn't block). Will ping tester and dm-reviewer directly once it's installable.
+
+## Codex implementation and QA handoff — 2026-08-10
+
+This section is the current handoff. It supersedes the older Phase 1 status notes above where they conflict.
+
+### Product/access model implemented
+
+- Free: one local campaign, no AI. Existing campaigns are never deleted on downgrade.
+- Pro: unlimited campaigns and shared-proxy access for NPC name/description generation, campaign summary, session summary, and PDF import.
+- Removed the BYO Anthropic-key flow and the temporary Free Shared AI toggle. `src/lib/ai.ts` no longer calls Anthropic directly and never accepts a client-side secret.
+- Added `react-native-purchases` and environment-driven RevenueCat setup. No entitlement name or public key was guessed. A missing configuration fails closed as Free and the paywall explains that purchasing is unavailable.
+- Added an app-wide Pro provider, purchase/restore UI, Pro gates, anonymous RevenueCat app-user ID display in Settings, and one shared access policy (`FREE_CAMPAIGN_LIMIT = 1`).
+- Added `.env.example` and `worker/.dev.vars.example`; no real credentials were written to the repo.
+
+Primary files: `src/lib/access-policy.ts`, `src/lib/purchases.ts`, `src/providers/pro-access.tsx`, `src/app/pro.tsx`, `src/components/pro-ai-button.tsx`, `src/components/pro-gate-card.tsx`, `src/lib/ai.ts`, `src/lib/campaign-ai.ts`, `src/app/import.tsx`, campaign/session/NPC screens, Settings, onboarding, `package.json`, and `app.json`.
+
+### Worker entitlement enforcement
+
+- All `/v1/messages`, `/v1/files`, and `/v1/files/:id` requests now require both `X-Client-Id` and `X-RevenueCat-App-User-Id`.
+- The Worker calls RevenueCat's subscriber endpoint using the Worker-only secret and checks the configured entitlement before spending rate-limit quota or calling Anthropic.
+- The Worker fails closed for missing/placeholder secrets, inactive entitlements, and RevenueCat outages.
+- Corrected an entitlement bug found during review: a null `grace_period_expires_date` no longer grants expired subscriptions lifetime access. A null primary `expires_date` still correctly represents a lifetime purchase.
+- Prompt, PDF, and response content are not persisted by this Worker; KV stores only the existing ephemeral per-client request counter.
+
+Primary files: `worker/src/index.ts`, `worker/wrangler.toml`, `worker/.dev.vars.example`, and `worker/package.json`.
+
+### Requested QA defects fixed
+
+- Drawer: custom drawer actions close first and navigate after interactions complete, preventing the Android overlay from being left open. A second device-found edge case was also fixed: selecting a drawer section now goes to that section's index instead of reopening its last nested editor.
+- Notes search: every FTS token is quoted and embedded quotes are escaped, so periods, colons, hyphens, parentheses, quotes, and asterisks are treated as literal search text instead of FTS5 syntax.
+- New PC: Name, Max HP, and Armor Class are required. Max HP must be a positive whole number; AC must be a non-negative whole number. Blank combat values are no longer silently stored as zero/null.
+- Free campaign limit: a free user can create the first campaign but gets a Pro upsell before a second is persisted. Campaign creation now uses a real draft screen so cancel/back cannot leave an empty campaign behind.
+
+### Additional defects fixed during the pass
+
+- Fixed eight pre-existing React lint errors caused by synchronous state initialization inside effects and dynamic component creation during render.
+- Campaign and session draft autosaves now flush the latest in-memory values on unmount, closing the data-loss window when leaving inside the 500 ms debounce.
+- Updated stale onboarding copy for the campaign/location/session workflow and the Free/Pro model.
+- One-shot encounters no longer claim a campaign-PC picker is available when the encounter is not linked to a campaign.
+- The hidden Pro route now has a real Back action and returns to the route that opened it.
+- Removed unused secure-key settings code and removed the unneeded Android audio-recording permission. Image picking requests photo-library access only.
+- Updated the intentionally pinned Expo SDK 56 packages to their Expo Doctor-compatible patch versions; SDK 57 was not adopted because this app's documented native crash remains unresolved.
+
+### Verification completed
+
+- `npm exec tsc -- --noEmit`: pass.
+- `worker/npm run typecheck`: pass.
+- `npm run lint`: zero errors; 12 known warnings remain only for deliberate static `require()` imports in `src/lib/srd.ts`.
+- `npx expo-doctor@latest`: 21/21 checks pass.
+- `npx expo export --platform android --output-dir builds/tmp/codex-export-final-20260810`: pass (1,851 modules, 44 assets).
+- `git diff --check`: no whitespace errors; only expected LF-to-CRLF notices on Windows.
+- Worker mocked regression matrix: active subscription 200; expired/null-grace 403 with no Anthropic call; active grace 200; lifetime 200; missing entitlement 403; RevenueCat outage 503; placeholder entitlement 500; exhausted quota 429; missing app-user ID 401; health 200.
+- Free campaign policy regression: count 0 allowed, count 1 blocked, Pro count 99 allowed.
+- SQLite FTS5 punctuation regression: `St.`, `Raven-Hill`, `Session 1:`, `(ambush)`, embedded quotes, `.`, `:`, and `Ash*` complete without syntax errors.
+- Fresh API 35 emulator/device pass: onboarding, one-campaign block, required PC Max HP/AC, punctuation searches, repeated drawer navigation, all four Free-to-Pro AI gates, paywall fail-closed state, campaign/session quick-navigation autosave, and every primary drawer screen. No fatal/Render Error evidence appeared in logcat/UI dumps.
+- Fresh development build: `0f27d8f3-20fc-4e3d-b0e6-f4fac44934f5`, finished, installed and exercised on `emulator-5556`.
+- Fresh preview build for clean store captures: `24f844ad-f561-4b6b-9943-205be04419c2`, finished, downloaded, installed, and smoke-tested. It produced clean captures without development menus or emulator chrome.
+- Fresh Play listing screenshots captured and visually checked: eight phone images at 1080x1920 in `docs/store-screenshots/phone-2026-08-10/`, four 7-inch tablet images at 1440x2560 in `docs/store-screenshots/tablet-7-2026-08-10/`, and four 10-inch tablet images at 1800x3200 in `docs/store-screenshots/tablet-10-2026-08-10/`. All are opaque 24-bit PNG, 9:16 portrait captures that contain only the app/device UI. The phone set uses Play's maximum eight-image slot count; the tablet sets cover dashboard, campaign, encounter runner, and offline rules.
+- `npm audit --omit=dev`: 24 transitive findings (15 high, 9 moderate, 0 critical). npm's automatic remediation proposes incompatible Expo/React Native downgrades, so no forced audit fix was applied. Re-evaluate with the next supported Expo upgrade instead of silently breaking the native stack.
+
+### Still blocked before production/Play submission
+
+1. RevenueCat/Play Billing values: create the Play subscription product/base plan, RevenueCat project/entitlement/offering, then provide the Android public SDK key and exact entitlement ID to EAS; provide the RevenueCat secret only to the Worker. Subscription period and price are still a user decision.
+2. Cloudflare production deployment: create/bind the real KV namespace, set Anthropic and RevenueCat Worker secrets, set the exact entitlement ID, deploy, and put the HTTPS Worker URL into EAS. Live paid AI cannot be tested until this exists.
+3. AI-content reporting: Google Play requires an in-app offensive-output report/flag path. The external GitHub issue link is not sufficient. This needs an explicit reporting backend/retention decision before implementation.
+4. Publish the updated privacy policy and complete Data Safety using the current RevenueCat/Cloudflare/Anthropic data flow.
+5. Test a real Play purchase, restore, expiration/downgrade, and Worker entitlement response through an internal testing track. The current no-key build proves fail-closed Free behavior, not a live purchase.
+6. Build a new production AAB only after the production values and policy flow exist, then test the actual AAB through Play internal testing. Older AAB/preview artifacts are stale.
+7. If this is a personal developer account created after 2023-11-13, complete Google's required closed-test period before applying for production access; account type/date have not been assumed.
+
+No commit, push, pull request, Play upload, Cloudflare deploy, or production AAB was created in this session.

@@ -13,6 +13,7 @@ import * as DocumentPicker from "expo-document-picker";
 
 import { AiError } from "@/components/ai-error";
 import { Colors } from "@/constants/colors";
+import { ProGateCard } from "@/components/pro-gate-card";
 import { createNpc } from "@/lib/npcs";
 import { createBestiaryMonster } from "@/lib/bestiary";
 import { createNote } from "@/lib/notes";
@@ -23,6 +24,7 @@ import {
   type ExtractedRule,
   type PdfImportStage,
 } from "@/lib/pdf-import";
+import { useProAccess } from "@/providers/pro-access";
 
 type Stage = "idle" | "working" | "review" | "importing" | "done";
 
@@ -54,6 +56,7 @@ function SmallInput(props: React.ComponentProps<typeof TextInput> & { placeholde
 }
 
 export default function ImportScreen() {
+  const { isPro, loading: accessLoading } = useProAccess();
   const [stage, setStage] = useState<Stage>("idle");
   const [uploadStage, setUploadStage] = useState<PdfImportStage>("uploading");
   const [error, setError] = useState<string | null>(null);
@@ -147,6 +150,30 @@ export default function ImportScreen() {
     setMonsters([]);
     setRules([]);
     setSummary(null);
+  }
+
+  if (accessLoading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-background">
+        <ActivityIndicator color={Colors.accentBright} />
+        <Text className="mt-3 text-sm text-muted">Checking Pro access...</Text>
+      </View>
+    );
+  }
+
+  if (!isPro) {
+    return (
+      <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-4 p-4 pb-10">
+        <Text className="text-sm leading-5 text-muted">
+          Import a sourcebook or homebrew PDF, review the extracted NPCs, monsters, and rules, then
+          choose what to save.
+        </Text>
+        <ProGateCard
+          title="PDF import is a Pro feature"
+          description="Infernal Codex Pro securely sends the PDF through the shared AI proxy. Free-plan campaign data always stays on your device."
+        />
+      </ScrollView>
+    );
   }
 
   return (

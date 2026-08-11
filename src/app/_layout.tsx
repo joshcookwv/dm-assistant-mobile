@@ -3,18 +3,56 @@ import "@/global.css";
 import {
   Drawer,
   DrawerContentScrollView,
-  DrawerItemList,
+  DrawerItem,
   type DrawerContentComponentProps,
 } from "expo-router/drawer";
+import { router, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { Image, Text, View, type ColorValue } from "react-native";
+import { Image, InteractionManager, Pressable, Text, View, type ColorValue } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import { Colors } from "@/constants/colors";
+import { ProAccessProvider } from "@/providers/pro-access";
+
+const DRAWER_STACK_ROUTES = new Set([
+  "rules",
+  "monsters",
+  "npcs",
+  "notes",
+  "campaign",
+  "encounters",
+  "maps",
+  "settings",
+]);
 
 function AppDrawerContent(props: DrawerContentComponentProps) {
+  const focusedRoute = props.state.routes[props.state.index];
+  const focusedOptions = props.descriptors[focusedRoute.key].options;
+
+  function handleRoutePress(route: (typeof props.state.routes)[number], focused: boolean) {
+    const event = props.navigation.emit({
+      type: "drawerItemPress",
+      target: route.key,
+      canPreventDefault: true,
+    });
+    if (event.defaultPrevented) return;
+
+    // Navigating and closing in the same drawer action intermittently left
+    // the drawer transition stuck open on Android. Finish the close animation
+    // first, then navigate after interactions have drained.
+    props.navigation.closeDrawer();
+    if (!focused || DRAWER_STACK_ROUTES.has(route.name)) {
+      InteractionManager.runAfterInteractions(() => {
+        const params = DRAWER_STACK_ROUTES.has(route.name)
+          ? { ...route.params, screen: "index" }
+          : route.params;
+        props.navigation.navigate(route.name, params);
+      });
+    }
+  }
+
   return (
     <DrawerContentScrollView {...props} contentContainerStyle={{ paddingTop: 0 }}>
       <View className="mb-3 border-b border-panel-border bg-panel-raised px-5 pb-5 pt-7">
@@ -32,7 +70,28 @@ function AppDrawerContent(props: DrawerContentComponentProps) {
           </View>
         </View>
       </View>
-      <DrawerItemList {...props} />
+      {props.state.routes.map((route, index) => {
+        const focused = index === props.state.index;
+        const options = props.descriptors[route.key].options;
+        const label = options.drawerLabel ?? options.title ?? route.name;
+        return (
+          <DrawerItem
+            key={route.key}
+            route={route}
+            label={label}
+            icon={options.drawerIcon}
+            focused={focused}
+            activeTintColor={focusedOptions.drawerActiveTintColor}
+            inactiveTintColor={focusedOptions.drawerInactiveTintColor}
+            activeBackgroundColor={focusedOptions.drawerActiveBackgroundColor}
+            inactiveBackgroundColor={focusedOptions.drawerInactiveBackgroundColor}
+            allowFontScaling={options.drawerAllowFontScaling}
+            labelStyle={options.drawerLabelStyle}
+            style={options.drawerItemStyle}
+            onPress={() => handleRoutePress(route, focused)}
+          />
+        );
+      })}
     </DrawerContentScrollView>
   );
 }
@@ -45,10 +104,11 @@ function drawerIcon(name: AppIconName) {
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={["bottom"]}>
-        <StatusBar style="light" />
-        <Drawer
+    <ProAccessProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={["bottom"]}>
+          <StatusBar style="light" />
+          <Drawer
           drawerContent={(props) => <AppDrawerContent {...props} />}
           screenOptions={{
             swipeEnabled: false,
@@ -115,8 +175,30 @@ export default function RootLayout() {
           name="onboarding"
           options={{ headerShown: false, swipeEnabled: false, drawerItemStyle: { height: 0 } }}
         />
-        </Drawer>
-      </SafeAreaView>
-    </GestureHandlerRootView>
+        <Drawer.Screen
+          name="pro"
+          options={({ route }) => {
+            const params = route.params as { returnTo?: unknown } | undefined;
+            const returnTo = typeof params?.returnTo === "string" ? params.returnTo : "/";
+            return {
+              title: "Infernal Codex Pro",
+              drawerItemStyle: { height: 0 },
+              swipeEnabled: false,
+              headerLeft: () => (
+                <Pressable
+                  accessibilityLabel="Go back"
+                  onPress={() => router.replace(returnTo as Href)}
+                  className="ml-2 h-11 w-11 items-center justify-center rounded-xl active:bg-white/5"
+                >
+                  <AppIcon name="chevronLeft" size={23} color={Colors.foreground} />
+                </Pressable>
+              ),
+            };
+          }}
+        />
+          </Drawer>
+        </SafeAreaView>
+      </GestureHandlerRootView>
+    </ProAccessProvider>
   );
 }

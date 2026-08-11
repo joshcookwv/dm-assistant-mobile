@@ -51,10 +51,12 @@ export default function NoteDetailScreen() {
     if (isNew) {
       const campaignId = campaignParam ? Number(campaignParam) : null;
       const locationId = locationParam ? Number(locationParam) : null;
-      setForm({ ...BLANK_FORM, campaignId, locationId });
-      if (locationId) setLocationName(getCampaignLocation(locationId)?.name ?? null);
-      navigation.setOptions({ title: "New Note" });
-      return;
+      const timeout = setTimeout(() => {
+        setForm({ ...BLANK_FORM, campaignId, locationId });
+        if (locationId) setLocationName(getCampaignLocation(locationId)?.name ?? null);
+        navigation.setOptions({ title: "New Note" });
+      }, 0);
+      return () => clearTimeout(timeout);
     }
     const note = getNote(Number(id));
     if (!note) {
@@ -62,15 +64,18 @@ export default function NoteDetailScreen() {
       router.back();
       return;
     }
-    setForm({
-      title: note.title,
-      content: note.content,
-      tags: note.tags,
-      campaignId: note.campaign_id,
-      locationId: note.location_id,
-    });
-    if (note.location_id) setLocationName(getCampaignLocation(note.location_id)?.name ?? null);
-    navigation.setOptions({ title: note.title });
+    const timeout = setTimeout(() => {
+      setForm({
+        title: note.title,
+        content: note.content,
+        tags: note.tags,
+        campaignId: note.campaign_id,
+        locationId: note.location_id,
+      });
+      if (note.location_id) setLocationName(getCampaignLocation(note.location_id)?.name ?? null);
+      navigation.setOptions({ title: note.title });
+    }, 0);
+    return () => clearTimeout(timeout);
   }, [id, isNew, navigation, locationParam, campaignParam]);
 
   function openLocationPicker() {

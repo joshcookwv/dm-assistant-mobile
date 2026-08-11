@@ -62,9 +62,11 @@ export default function CustomMonsterDetailScreen() {
 
   useEffect(() => {
     if (isNew) {
-      setForm(monsterToForm(BLANK_FORM));
-      navigation.setOptions({ title: "New Monster" });
-      return;
+      const timeout = setTimeout(() => {
+        setForm(monsterToForm(BLANK_FORM));
+        navigation.setOptions({ title: "New Monster" });
+      }, 0);
+      return () => clearTimeout(timeout);
     }
     const monster = getBestiaryMonster(Number(id));
     if (!monster) {
@@ -72,8 +74,11 @@ export default function CustomMonsterDetailScreen() {
       router.back();
       return;
     }
-    setForm(monsterToForm(monster));
-    navigation.setOptions({ title: monster.name });
+    const timeout = setTimeout(() => {
+      setForm(monsterToForm(monster));
+      navigation.setOptions({ title: monster.name });
+    }, 0);
+    return () => clearTimeout(timeout);
   }, [id, isNew, navigation]);
 
   function handleSave() {

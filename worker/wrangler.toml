@@ -10,6 +10,7 @@ compatibility_date = "2025-01-01"
 RATE_LIMIT_MAX = 30
 RATE_LIMIT_WINDOW_SECONDS = 86400
 ALLOWED_MODEL = "claude-haiku-4-5-20251001"
+REVENUECAT_ENTITLEMENT_ID = "REPLACE_BEFORE_DEPLOY"
 
 # --- Rate limit counter storage -----------------------------------------
 # Per-client-ID request counts for the 24h quota above, via Workers KV
@@ -31,3 +32,5 @@ preview_id = "REPLACE_BEFORE_DEPLOY_RATE_LIMIT_KV_ID"
 # ANTHROPIC_API_KEY is a secret, deliberately not set here:
 #   local dev  -> worker/.dev.vars (gitignored; copy .dev.vars.example)
 #   deployed   -> `wrangler secret put ANTHROPIC_API_KEY` (human-user checkpoint)
+# REVENUECAT_SECRET_API_KEY is also Worker-only and must be supplied through
+# .dev.vars locally / `wrangler secret put` for the deployed Worker.

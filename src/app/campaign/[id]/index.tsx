@@ -3,8 +3,13 @@ import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-nativ
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 
 import { AppIcon } from "@/components/app-icon";
+import { AiError } from "@/components/ai-error";
 import { DeleteButton, DeleteConfirmBar } from "@/components/delete-confirm-bar";
+import { FormField } from "@/components/form-field";
+import { FormSection } from "@/components/form-section";
+import { ProAiButton } from "@/components/pro-ai-button";
 import { Colors } from "@/constants/colors";
+import { generateCampaignSummary } from "@/lib/campaign-ai";
 import {
   createCampaignSession,
   deleteCampaign,
@@ -25,11 +30,15 @@ export default function CampaignDetailScreen() {
   const navigation = useNavigation();
 
   const [name, setName] = useState("");
+  const [notes, setNotes] = useState("");
   const [pcs, setPcs] = useState<CampaignPc[]>([]);
   const [locations, setLocations] = useState<LocationSummary[]>([]);
   const [sessions, setSessions] = useState<CampaignSession[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const nameDirty = useRef(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const dirty = useRef(false);
+  const latestDraft = useRef({ name: "", notes: "" });
 
   const refresh = useCallback(() => {
     const campaign = getCampaign(campaignId);
@@ -38,7 +47,10 @@ export default function CampaignDetailScreen() {
       router.back();
       return;
     }
-    if (!nameDirty.current) setName(campaign.name);
+    if (!dirty.current) {
+      setName(campaign.name);
+      setNotes(campaign.notes);
+    }
     navigation.setOptions({ title: campaign.name });
     setPcs(listCampaignPcs(campaignId));
     setLocations(listCampaignLocations(campaignId));
@@ -48,14 +60,64 @@ export default function CampaignDetailScreen() {
   useFocusEffect(refresh);
 
   useEffect(() => {
-    if (!nameDirty.current) return;
+    latestDraft.current = { name, notes };
+  }, [name, notes]);
+
+  useEffect(
+    () => () => {
+      if (!dirty.current) return;
+      const draft = latestDraft.current;
+      updateCampaign(campaignId, draft.name.trim() || "Untitled Campaign", draft.notes);
+      dirty.current = false;
+    },
+    [campaignId]
+  );
+
+  useEffect(() => {
+    if (!dirty.current) return;
     const timeout = setTimeout(() => {
-      updateCampaign(campaignId, name.trim() || "Untitled Campaign");
+      updateCampaign(campaignId, name.trim() || "Untitled Campaign", notes);
       navigation.setOptions({ title: name });
-      nameDirty.current = false;
+      dirty.current = false;
     }, 500);
     return () => clearTimeout(timeout);
-  }, [name, campaignId, navigation]);
+  }, [name, notes, campaignId, navigation]);
+
+  async function handleGenerateSummary() {
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const generated = await generateCampaignSummary({
+        campaignName: name.trim() || "Untitled Campaign",
+        currentNotes: notes,
+        party: pcs.map((pc) =>
+          [pc.name, pc.classLevel, `HP ${pc.maxHp}`, `AC ${pc.ac ?? "unknown"}`, pc.notes]
+            .filter(Boolean)
+            .join(" · ")
+        ),
+        locations: locations.map((location) =>
+          [location.name, location.description, `${location.npcCount} NPCs`, `${location.noteCount} notes`]
+            .filter(Boolean)
+            .join(" · ")
+        ),
+        sessions: sessions.map((session) =>
+          [
+            `Session ${session.number}: ${session.name}`,
+            session.playedOn,
+            session.recap || "No recap recorded",
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        ),
+      });
+      dirty.current = true;
+      setNotes(generated);
+    } catch (error) {
+      setSummaryError(error instanceof Error ? error.message : "Couldn't generate a campaign summary.");
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
 
   function handleNewLocation() {
     router.push(`/campaign/${campaignId}/location/new`);
@@ -76,13 +138,40 @@ export default function CampaignDetailScreen() {
       <TextInput
         value={name}
         onChangeText={(next) => {
-          nameDirty.current = true;
+          dirty.current = true;
           setName(next);
         }}
         placeholder="Campaign name"
         placeholderTextColor={Colors.muted}
         className="rounded-md border border-panel-border bg-panel px-3 py-2.5 text-lg font-bold text-foreground"
       />
+
+      <FormSection
+        title="Campaign summary"
+        description="Keep your current state, open hooks, and next-session reminders together."
+        icon="sparkles"
+      >
+        <FormField
+          label="Summary & notes"
+          value={notes}
+          onChangeText={(next) => {
+            dirty.current = true;
+            setNotes(next);
+          }}
+          placeholder="Current situation, unresolved hooks, and next steps..."
+          multiline
+          className="min-h-40"
+          labelRight={
+            <ProAiButton
+              label="Generate summary"
+              loadingLabel="Summarizing..."
+              loading={summaryLoading}
+              onPress={handleGenerateSummary}
+            />
+          }
+        />
+        {summaryError && <AiError message={summaryError} />}
+      </FormSection>
 
       <View>
         <View className="mb-2 flex-row items-center justify-between">

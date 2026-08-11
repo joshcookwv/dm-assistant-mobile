@@ -9,6 +9,7 @@ export default function CampaignStackLayout() {
         name="index"
         options={{ title: "Campaigns", headerLeft: drawerToggleHeaderLeft }}
       />
+      <Stack.Screen name="new" options={{ title: "New Campaign" }} />
       <Stack.Screen name="[id]" options={{ headerShown: false }} />
     </Stack>
   );

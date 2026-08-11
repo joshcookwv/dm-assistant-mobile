@@ -430,44 +430,42 @@ function ArmorDetail({ entry: e }: { entry: SrdEntry }) {
  * only content — the owning screen supplies its own scroll container/padding.
  */
 export function SrdDetail({ category, entry }: { category: SrdCategory; entry: SrdEntry }) {
-  const Renderer = detailRendererFor(category);
-
   return (
     <>
       <View className="flex-row items-start justify-between gap-3">
         <Text className="flex-1 text-xl font-semibold text-accent">{entry.name}</Text>
         <SourceBadge entry={entry} />
       </View>
-      <Renderer entry={entry} />
+      {renderDetails(category, entry)}
     </>
   );
 }
 
-function detailRendererFor(category: SrdCategory) {
+function renderDetails(category: SrdCategory, entry: SrdEntry) {
   switch (category) {
     case "spells":
-      return SpellDetail;
+      return <SpellDetail entry={entry} />;
     case "creatures":
-      return CreatureDetail;
+      return <CreatureDetail entry={entry} />;
     case "conditions":
-      return ConditionDetail;
+      return <ConditionDetail entry={entry} />;
     case "classes":
-      return ClassDetail;
+      return <ClassDetail entry={entry} />;
     case "species":
-      return SpeciesDetail;
+      return <SpeciesDetail entry={entry} />;
     case "feats":
-      return FeatDetail;
+      return <FeatDetail entry={entry} />;
     case "backgrounds":
-      return BackgroundDetail;
+      return <BackgroundDetail entry={entry} />;
     case "magicitems":
-      return MagicItemDetail;
+      return <MagicItemDetail entry={entry} />;
     case "items":
-      return ItemDetail;
+      return <ItemDetail entry={entry} />;
     case "weapons":
-      return WeaponDetail;
+      return <WeaponDetail entry={entry} />;
     case "armor":
-      return ArmorDetail;
+      return <ArmorDetail entry={entry} />;
     default:
-      return Fragment as unknown as (props: { entry: SrdEntry }) => React.JSX.Element;
+      return <Fragment />;
   }
 }

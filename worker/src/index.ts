@@ -1,10 +1,10 @@
 /**
  * Cloudflare Worker AI proxy for Infernal Codex Mobile.
  *
- * Holds the one shared ANTHROPIC_API_KEY secret so AI features work for
- * every install out of the box, without shipping a key in the app or
- * requiring users to get their own. See docs/cloudflare-backend-plan.md
- * for the full architecture/rationale — this file implements that spec.
+ * Holds the shared ANTHROPIC_API_KEY secret so Pro AI features work without
+ * shipping a key in the app or requiring subscribers to get their own. Every
+ * proxied request is independently verified against RevenueCat before shared
+ * quota is spent. See docs/cloudflare-backend-plan.md for the full plan.
  *
  * Proxies two Anthropic endpoints: POST /v1/messages, and (as of the
  * 2026-08-09 "PDF import too" update) file uploads/deletes at
@@ -21,6 +21,11 @@
 export interface Env {
   // Secret — worker/.dev.vars locally, `wrangler secret put` when deployed.
   ANTHROPIC_API_KEY: string;
+  // Secret RevenueCat v1 API key used only by the Worker to verify the
+  // anonymous app-user ID supplied by the mobile SDK. Never expose this to
+  // the client bundle.
+  REVENUECAT_SECRET_API_KEY: string;
+  REVENUECAT_ENTITLEMENT_ID: string;
   // Ephemeral rate-limit counters only. No prompt/response content ever
   // touches this KV namespace.
   RATE_LIMIT_KV: KVNamespace;
@@ -34,6 +39,8 @@ const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_FILES_URL = "https://api.anthropic.com/v1/files";
 const ANTHROPIC_VERSION = "2023-06-01";
 const MAX_CLIENT_ID_LENGTH = 256;
+const MAX_APP_USER_ID_LENGTH = 256;
+const REVENUECAT_API_BASE_URL = "https://api.revenuecat.com/v1";
 
 // The only beta features this app's proxy paths ever need. Allowlisted for
 // the same reason as the model below — an arbitrary client-supplied
@@ -49,7 +56,8 @@ function corsHeaders(): Record<string, string> {
   return {
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "POST, GET, DELETE, OPTIONS",
-    "access-control-allow-headers": "content-type, x-client-id, anthropic-beta",
+    "access-control-allow-headers":
+      "content-type, x-client-id, x-revenuecat-app-user-id, anthropic-beta",
   };
 }
 
@@ -138,6 +146,105 @@ async function checkRateLimit(
 
 type GateResult = { ok: true; clientId: string } | { ok: false; response: Response };
 
+type RevenueCatSubscriber = {
+  subscriber?: {
+    entitlements?: Record<
+      string,
+      {
+        expires_date?: string | null;
+        grace_period_expires_date?: string | null;
+      }
+    >;
+  };
+};
+
+function entitlementExpirationIsActive(value: string | null | undefined): boolean {
+  if (value === null) return true;
+  if (!value) return false;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) && timestamp > Date.now();
+}
+
+function datedAccessWindowIsActive(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) && timestamp > Date.now();
+}
+
+function isConfiguredValue(value: string | undefined): value is string {
+  if (!value) return false;
+  const trimmed = value.trim();
+  return Boolean(trimmed) && !trimmed.startsWith("REPLACE_");
+}
+
+async function verifyProEntitlement(
+  appUserId: string,
+  env: Env
+): Promise<{ ok: true } | { ok: false; response: Response }> {
+  if (
+    !isConfiguredValue(env.REVENUECAT_SECRET_API_KEY) ||
+    !isConfiguredValue(env.REVENUECAT_ENTITLEMENT_ID)
+  ) {
+    return {
+      ok: false,
+      response: jsonResponse(
+        { error: "server_misconfigured", message: "Pro verification is not configured. Try again later." },
+        500
+      ),
+    };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${REVENUECAT_API_BASE_URL}/subscribers/${encodeURIComponent(appUserId)}`,
+      {
+        headers: {
+          authorization: `Bearer ${env.REVENUECAT_SECRET_API_KEY}`,
+          "content-type": "application/json",
+        },
+      }
+    );
+  } catch {
+    return {
+      ok: false,
+      response: jsonResponse(
+        { error: "entitlement_unavailable", message: "Couldn't verify Pro access. Try again." },
+        503
+      ),
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      response: jsonResponse(
+        { error: "entitlement_unavailable", message: "Couldn't verify Pro access. Try again." },
+        503
+      ),
+    };
+  }
+
+  const body = (await response.json()) as RevenueCatSubscriber;
+  const entitlement = body.subscriber?.entitlements?.[env.REVENUECAT_ENTITLEMENT_ID];
+  const active =
+    Boolean(entitlement) &&
+    (entitlementExpirationIsActive(entitlement?.expires_date) ||
+      datedAccessWindowIsActive(entitlement?.grace_period_expires_date));
+
+  if (!active) {
+    return {
+      ok: false,
+      response: jsonResponse(
+        { error: "pro_required", message: "Infernal Codex Pro is required for AI features." },
+        403
+      ),
+    };
+  }
+
+  return { ok: true };
+}
+
 /**
  * Shared entry gate for every proxied endpoint (messages, file upload, file
  * delete): validates X-Client-Id, confirms the server is actually
@@ -156,6 +263,7 @@ type GateResult = { ok: true; clientId: string } | { ok: false; response: Respon
  */
 async function gateRequest(request: Request, env: Env): Promise<GateResult> {
   const clientId = request.headers.get("X-Client-Id")?.trim();
+  const appUserId = request.headers.get("X-RevenueCat-App-User-Id")?.trim();
   if (!clientId) {
     return {
       ok: false,
@@ -169,7 +277,26 @@ async function gateRequest(request: Request, env: Env): Promise<GateResult> {
     };
   }
 
-  if (!env.ANTHROPIC_API_KEY) {
+  if (!appUserId) {
+    return {
+      ok: false,
+      response: jsonResponse(
+        { error: "missing_app_user_id", message: "RevenueCat app-user ID is required." },
+        401
+      ),
+    };
+  }
+  if (appUserId.length > MAX_APP_USER_ID_LENGTH) {
+    return {
+      ok: false,
+      response: jsonResponse(
+        { error: "invalid_app_user_id", message: "RevenueCat app-user ID is invalid." },
+        400
+      ),
+    };
+  }
+
+  if (!isConfiguredValue(env.ANTHROPIC_API_KEY)) {
     return {
       ok: false,
       response: jsonResponse(
@@ -178,6 +305,9 @@ async function gateRequest(request: Request, env: Env): Promise<GateResult> {
       ),
     };
   }
+
+  const entitlement = await verifyProEntitlement(appUserId, env);
+  if (!entitlement.ok) return entitlement;
 
   const rl = await checkRateLimit(
     env.RATE_LIMIT_KV,
@@ -191,8 +321,7 @@ async function gateRequest(request: Request, env: Env): Promise<GateResult> {
       response: jsonResponse(
         {
           error: "rate_limited",
-          message:
-            "Daily free AI limit reached. Try again tomorrow, or add your own API key in Settings for unlimited use.",
+          message: "Daily Pro AI limit reached. Try again tomorrow.",
         },
         429,
         { "retry-after": String(Math.max(1, Math.ceil((rl.resetAt - Date.now()) / 1000))) }

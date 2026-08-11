@@ -45,3 +45,7 @@ example
 # generated native folders
 /ios
 /android
+
+# Local Android/QA artifacts
+/builds/tmp/
+/docs/store-assets/feature-graphic1.jpg

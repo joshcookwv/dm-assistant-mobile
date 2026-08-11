@@ -1,12 +1,14 @@
 import { useCallback, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
-import { FlatList, Text, View } from "react-native";
+import { Alert, FlatList, Text, View } from "react-native";
 
 import { AppIcon } from "@/components/app-icon";
 import { EntityListEmpty, EntityListItem } from "@/components/entity-list-item";
 import { PrimaryButton } from "@/components/primary-button";
 import { Colors } from "@/constants/colors";
-import { createCampaign, listCampaigns, type CampaignSummary } from "@/lib/campaigns";
+import { canCreateCampaign, FREE_CAMPAIGN_LIMIT } from "@/lib/access-policy";
+import { listCampaigns, type CampaignSummary } from "@/lib/campaigns";
+import { useProAccess } from "@/providers/pro-access";
 
 function summaryLine(campaign: CampaignSummary): string {
   if (campaign.pcCount === 0 && campaign.locationCount === 0) return "Nothing set up yet";
@@ -21,13 +23,28 @@ function summaryLine(campaign: CampaignSummary): string {
 
 export default function CampaignsListScreen() {
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
+  const { isPro, loading: accessLoading } = useProAccess();
 
   const refresh = useCallback(() => setCampaigns(listCampaigns()), []);
   useFocusEffect(refresh);
 
   function handleCreate() {
-    const created = createCampaign("New Campaign");
-    router.push(`/campaign/${created.id}`);
+    if (!canCreateCampaign(isPro, campaigns.length)) {
+      Alert.alert(
+        "Free campaign limit reached",
+        `The free plan includes ${FREE_CAMPAIGN_LIMIT} campaign. Upgrade to Infernal Codex Pro for unlimited campaigns.`,
+        [
+          { text: "Not now", style: "cancel" },
+          {
+            text: "View Pro",
+            onPress: () =>
+              router.push({ pathname: "/pro", params: { returnTo: "/campaign" } }),
+          },
+        ]
+      );
+      return;
+    }
+    router.push("/campaign/new");
   }
 
   return (
@@ -40,12 +57,17 @@ export default function CampaignsListScreen() {
           <View className="flex-1">
             <Text className="text-sm font-bold text-foreground">Your campaign, organized</Text>
             <Text className="mt-1 text-xs leading-5 text-muted">
-              Keep a persistent party roster and browse locations to see who's there, what's
-              happened, and what's been noted.
+              Keep a persistent party roster and browse locations to see who&apos;s there, what&apos;s
+              happened, and what&apos;s been noted.
             </Text>
           </View>
         </View>
-        <PrimaryButton label="New Campaign" onPress={handleCreate} />
+        <PrimaryButton label="New Campaign" onPress={handleCreate} disabled={accessLoading} />
+        {!isPro && campaigns.length > 0 && (
+          <Text className="text-center text-xs text-muted">
+            Free plan: 1 of 1 campaign used · Pro unlocks unlimited campaigns
+          </Text>
+        )}
       </View>
 
       <FlatList

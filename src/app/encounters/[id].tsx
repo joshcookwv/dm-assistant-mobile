@@ -47,14 +47,17 @@ export default function EncounterDetailScreen() {
       router.back();
       return;
     }
-    setEncounter(found);
-    navigation.setOptions({ title: found.name });
-    if (found.campaign_id) {
-      setCampaignPcs(listCampaignPcs(found.campaign_id));
-      const campaign = getCampaign(found.campaign_id);
-      const location = found.location_id ? getCampaignLocation(found.location_id) : undefined;
-      setLinkLabel([campaign?.name, location?.name].filter(Boolean).join(" — "));
-    }
+    const timeout = setTimeout(() => {
+      setEncounter(found);
+      navigation.setOptions({ title: found.name });
+      if (found.campaign_id) {
+        setCampaignPcs(listCampaignPcs(found.campaign_id));
+        const campaign = getCampaign(found.campaign_id);
+        const location = found.location_id ? getCampaignLocation(found.location_id) : undefined;
+        setLinkLabel([campaign?.name, location?.name].filter(Boolean).join(" — "));
+      }
+    }, 0);
+    return () => clearTimeout(timeout);
   }, [id, navigation]);
 
   useEffect(() => {
@@ -270,7 +273,11 @@ export default function EncounterDetailScreen() {
                 <AppIcon name="encounters" size={27} color={Colors.accentBright} />
               </View>
               <Text className="mt-4 text-base font-bold text-foreground">Build the initiative order</Text>
-              <Text className="mt-1 max-w-72 text-center text-sm leading-5 text-muted">Add a monster, a PC from your campaign roster, or create a custom combatant.</Text>
+              <Text className="mt-1 max-w-72 text-center text-sm leading-5 text-muted">
+                {encounter.campaign_id
+                  ? "Add a monster, a PC from your campaign roster, or create a custom combatant."
+                  : "Add a monster or create a custom combatant."}
+              </Text>
             </View>
           ) : null}
           {encounter.combatants.map((combatant, index) => (

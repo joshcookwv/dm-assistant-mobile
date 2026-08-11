@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 
 import { AiError } from "@/components/ai-error";
@@ -8,6 +8,7 @@ import { DeleteButton, DeleteConfirmBar } from "@/components/delete-confirm-bar"
 import { FormField } from "@/components/form-field";
 import { FormSection } from "@/components/form-section";
 import { PrimaryButton } from "@/components/primary-button";
+import { ProAiButton } from "@/components/pro-ai-button";
 import { SaveToast } from "@/components/save-toast";
 import { Colors } from "@/constants/colors";
 import {
@@ -114,24 +115,6 @@ function AppearanceLogger({ npcId, onLogged }: { npcId: number; onLogged: () => 
 
 const BLANK_FORM: NpcInput = { name: "", race: "", role: "", location: "", tags: "", description: "" };
 
-function AiSuggestButton({ loading, disabled, onPress }: { loading: boolean; disabled?: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={loading || disabled}
-      hitSlop={6}
-      className={`flex-row items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 ${loading || disabled ? "opacity-50" : ""}`}
-    >
-      {loading ? (
-        <ActivityIndicator size={12} color={Colors.accentBright} />
-      ) : (
-        <AppIcon name="sparkles" size={13} color={Colors.accentBright} />
-      )}
-      <Text className="text-xs font-semibold text-accent-bright">{loading ? "Thinking..." : "Suggest"}</Text>
-    </Pressable>
-  );
-}
-
 export default function NpcDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const isNew = id === "new";
@@ -154,19 +137,21 @@ export default function NpcDetailScreen() {
   useFocusEffect(refreshAppearances);
 
   useEffect(() => {
-    if (isNew) {
-      setForm(BLANK_FORM);
-      navigation.setOptions({ title: "New NPC" });
-      return;
-    }
-    const npc = getNpc(Number(id));
-    if (!npc) {
-      Alert.alert("Not found", "This NPC no longer exists.");
-      router.back();
-      return;
-    }
-    setForm(npc);
-    navigation.setOptions({ title: npc.name });
+    const timeout = setTimeout(() => {
+      if (isNew) {
+        navigation.setOptions({ title: "New NPC" });
+        return;
+      }
+      const npc = getNpc(Number(id));
+      if (!npc) {
+        Alert.alert("Not found", "This NPC no longer exists.");
+        router.back();
+        return;
+      }
+      setForm(npc);
+      navigation.setOptions({ title: npc.name });
+    }, 0);
+    return () => clearTimeout(timeout);
   }, [id, isNew, navigation]);
 
   function handleSave() {
@@ -236,7 +221,7 @@ export default function NpcDetailScreen() {
               value={form.name}
               onChangeText={(name) => setForm({ ...form, name })}
               placeholder="Grimsby Ironhand"
-              labelRight={<AiSuggestButton loading={nameAiLoading} onPress={handleSuggestName} />}
+              labelRight={<ProAiButton label="Suggest" loading={nameAiLoading} onPress={handleSuggestName} />}
             />
             {nameAiError && <AiError message={nameAiError} />}
           </View>
@@ -264,7 +249,7 @@ export default function NpcDetailScreen() {
               placeholder="Appearance, personality, motivations, secrets..."
               multiline
               className="min-h-44"
-              labelRight={<AiSuggestButton loading={descAiLoading} disabled={!form.name.trim()} onPress={handleSuggestDescription} />}
+              labelRight={<ProAiButton label="Suggest" loading={descAiLoading} disabled={!form.name.trim()} onPress={handleSuggestDescription} />}
             />
             {descAiError && <AiError message={descAiError} />}
           </View>

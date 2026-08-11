@@ -1,7 +1,7 @@
 {
   "name": "dm-assistant-mobile-worker",
   "version": "1.0.0",
-  "description": "Cloudflare Worker AI proxy for Infernal Codex Mobile — holds the shared Anthropic API key, rate-limits per anonymous client ID, forwards to /v1/messages.",
+  "description": "Cloudflare Worker AI proxy for Infernal Codex Pro — verifies RevenueCat access, rate-limits per client, and forwards approved AI requests.",
   "private": true,
   "type": "module",
   "scripts": {

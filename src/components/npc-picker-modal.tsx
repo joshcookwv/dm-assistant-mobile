@@ -27,20 +27,26 @@ export function NpcPickerModal({
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    if (!visible) {
-      setQuery("");
-      setResults([]);
-      setLastAdded(null);
-    } else {
-      setResults(listNpcs());
-    }
+    const timeout = setTimeout(() => {
+      if (!visible) {
+        setQuery("");
+        setResults([]);
+        setLastAdded(null);
+      } else {
+        setResults(listNpcs());
+      }
+    }, 0);
+    return () => clearTimeout(timeout);
   }, [visible]);
 
   useEffect(() => {
     const thisRequest = ++requestId.current;
-    const found = listNpcs(debouncedQuery);
-    if (requestId.current !== thisRequest) return;
-    setResults(found);
+    const timeout = setTimeout(() => {
+      const found = listNpcs(debouncedQuery);
+      if (requestId.current !== thisRequest) return;
+      setResults(found);
+    }, 0);
+    return () => clearTimeout(timeout);
   }, [debouncedQuery]);
 
   function handleSelect(npc: Npc) {

@@ -22,9 +22,12 @@ export interface NoteInput {
 function buildFtsQuery(raw: string): string {
   const tokens = raw
     .split(/\s+/)
-    .map((t) => t.replace(/["^*:]/g, ""))
+    .map((token) => token.trim())
     .filter(Boolean);
-  return tokens.map((t) => `${t}*`).join(" ");
+  // FTS5 still parses its own query grammar for bound MATCH parameters.
+  // Quote each user token and escape embedded quotes so punctuation such as
+  // periods, colons, dashes, and parentheses is always treated as text.
+  return tokens.map((token) => `"${token.replace(/"/g, '""')}"*`).join(" ");
 }
 
 export function listNotes(query?: string): Note[] {

@@ -28,16 +28,19 @@ export function MonsterPickerModal({
 
   useEffect(() => {
     if (!visible) {
-      setQuery("");
-      setResults([]);
-      setLastAdded(null);
+      const timeout = setTimeout(() => {
+        setQuery("");
+        setResults([]);
+        setLastAdded(null);
+      }, 0);
+      return () => clearTimeout(timeout);
     }
   }, [visible]);
 
   useEffect(() => {
     if (!debouncedQuery.trim()) {
-      setResults([]);
-      return;
+      const timeout = setTimeout(() => setResults([]), 0);
+      return () => clearTimeout(timeout);
     }
     const thisRequest = ++requestId.current;
     listMonsters({ query: debouncedQuery, limitPerOrigin: 30 }).then((found) => {
