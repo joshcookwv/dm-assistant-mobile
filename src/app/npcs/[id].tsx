@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 
 import { AiError } from "@/components/ai-error";
@@ -31,6 +31,7 @@ import {
   type NpcRelationDetail,
 } from "@/lib/npc-relations";
 import { createNpc, deleteNpc, getNpc, listNpcs, updateNpc, type Npc, type NpcInput } from "@/lib/npcs";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 
 function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
@@ -229,6 +230,7 @@ export default function NpcDetailScreen() {
   const navigation = useNavigation();
 
   const [form, setForm] = useState<NpcInput>(BLANK_FORM);
+  const [baseline, setBaseline] = useState<NpcInput>(BLANK_FORM);
   const [saving, setSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -241,6 +243,11 @@ export default function NpcDetailScreen() {
   const [appearances, setAppearances] = useState<NpcAppearanceDetail[]>([]);
   const [relations, setRelations] = useState<NpcRelationDetail[]>([]);
 
+  const raceRef = useRef<TextInput>(null);
+  const roleRef = useRef<TextInput>(null);
+  const locationRef = useRef<TextInput>(null);
+  const tagsRef = useRef<TextInput>(null);
+
   const refreshAppearances = useCallback(() => {
     if (!isNew) setAppearances(listAppearancesByNpc(Number(id)));
   }, [id, isNew]);
@@ -251,6 +258,30 @@ export default function NpcDetailScreen() {
 
   useFocusEffect(refreshAppearances);
   useFocusEffect(refreshRelations);
+
+  // Screens reached via router.push can be reused by the navigator rather
+  // than remounted, so a "New NPC" form left blank-but-focused by our own
+  // useState initializer on first visit would otherwise keep showing
+  // whatever an earlier, unsaved draft last typed into it. Resetting on
+  // every focus (not just mount) guarantees "New NPC" always starts blank.
+  useFocusEffect(
+    useCallback(() => {
+      if (isNew) {
+        setForm(BLANK_FORM);
+        setBaseline(BLANK_FORM);
+        setGeneratedName(null);
+        setGeneratedDescription(null);
+      }
+    }, [isNew])
+  );
+
+  const isDirty = JSON.stringify(form) !== JSON.stringify(baseline);
+  const allowLeave = useUnsavedChangesGuard(
+    isDirty,
+    isNew
+      ? "This NPC hasn't been saved. If you go back now, it will be lost."
+      : "This NPC has unsaved changes. If you go back now, they will be lost."
+  );
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -265,6 +296,7 @@ export default function NpcDetailScreen() {
         return;
       }
       setForm(npc);
+      setBaseline(npc);
       navigation.setOptions({ title: npc.name });
     }, 0);
     return () => clearTimeout(timeout);
@@ -276,9 +308,12 @@ export default function NpcDetailScreen() {
     try {
       if (isNew) {
         const created = createNpc(form);
+        allowLeave();
         router.replace(`/npcs/${created.id}`);
       } else {
         updateNpc(Number(id), form);
+        setBaseline(form);
+        allowLeave();
         navigation.setOptions({ title: form.name });
       }
       setSavedToast(true);
@@ -288,6 +323,7 @@ export default function NpcDetailScreen() {
   }
 
   function handleDelete() {
+    allowLeave();
     deleteNpc(Number(id));
     router.back();
   }
@@ -340,6 +376,9 @@ export default function NpcDetailScreen() {
               onChangeText={(name) => setForm({ ...form, name })}
               placeholder="Grimsby Ironhand"
               labelRight={<ProAiButton label="Suggest" loading={nameAiLoading} onPress={handleSuggestName} />}
+              returnKeyType="next"
+              onSubmitEditing={() => raceRef.current?.focus()}
+              blurOnSubmit={false}
             />
             {nameAiError && <AiError message={nameAiError} />}
             {generatedName && (
@@ -348,19 +387,53 @@ export default function NpcDetailScreen() {
               </View>
             )}
           </View>
-          <View className="flex-row gap-3">
+          <View className="flex-row gap-4">
             <View className="flex-1">
-              <FormField label="Race" value={form.race} onChangeText={(race) => setForm({ ...form, race })} placeholder="Dwarf" />
+              <FormField
+                ref={raceRef}
+                label="Race"
+                value={form.race}
+                onChangeText={(race) => setForm({ ...form, race })}
+                placeholder="Dwarf"
+                returnKeyType="next"
+                onSubmitEditing={() => roleRef.current?.focus()}
+                blurOnSubmit={false}
+              />
             </View>
             <View className="flex-1">
-              <FormField label="Role" value={form.role} onChangeText={(role) => setForm({ ...form, role })} placeholder="Blacksmith" />
+              <FormField
+                ref={roleRef}
+                label="Role"
+                value={form.role}
+                onChangeText={(role) => setForm({ ...form, role })}
+                placeholder="Blacksmith"
+                returnKeyType="next"
+                onSubmitEditing={() => locationRef.current?.focus()}
+                blurOnSubmit={false}
+              />
             </View>
           </View>
         </FormSection>
 
         <FormSection title="Campaign details" description="Where they belong and how you want to find them later." icon="tag">
-          <FormField label="Location" value={form.location} onChangeText={(location) => setForm({ ...form, location })} placeholder="Ironhold Forge, Dockside" />
-          <FormField label="Tags" value={form.tags} onChangeText={(tags) => setForm({ ...form, tags })} placeholder="ally, quest-giver, merchant" />
+          <FormField
+            ref={locationRef}
+            label="Location"
+            value={form.location}
+            onChangeText={(location) => setForm({ ...form, location })}
+            placeholder="Ironhold Forge, Dockside"
+            returnKeyType="next"
+            onSubmitEditing={() => tagsRef.current?.focus()}
+            blurOnSubmit={false}
+          />
+          <FormField
+            ref={tagsRef}
+            label="Tags"
+            value={form.tags}
+            onChangeText={(tags) => setForm({ ...form, tags })}
+            placeholder="ally, quest-giver, merchant"
+            returnKeyType="done"
+          />
         </FormSection>
 
         <FormSection title="Description & secrets" description="Appearance, personality, motivations, and private DM notes." icon="notes">

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 
 import { FormField } from "@/components/form-field";
 import { FormSection } from "@/components/form-section";
@@ -14,6 +14,17 @@ export default function NewCampaignScreen() {
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Screens reached via router.push can be reused by the navigator rather
+  // than remounted, so this form could otherwise keep showing whatever an
+  // earlier, unsaved draft last typed into it. Resetting on every focus
+  // guarantees New Campaign always starts blank.
+  useFocusEffect(
+    useCallback(() => {
+      setName("");
+      setNotes("");
+    }, [])
+  );
 
   function handleCreate() {
     const campaignName = name.trim();

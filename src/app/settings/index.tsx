@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Linking, Pressable, ScrollView, Text, View } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 
 import { DeleteConfirmBar } from "@/components/delete-confirm-bar";
@@ -35,6 +35,18 @@ export default function SettingsScreen() {
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+
+  // The counts in exportMessage/importMessage are only ever as fresh as the
+  // moment their action ran — without this, returning to a backgrounded
+  // Settings screen after adding data elsewhere would keep showing counts
+  // from a now-stale prior export/import instead of prompting a fresh one.
+  useFocusEffect(
+    useCallback(() => {
+      setExportMessage(null);
+      setImportMessage(null);
+      setImportError(null);
+    }, [])
+  );
 
   async function handleExport() {
     setExporting(true);

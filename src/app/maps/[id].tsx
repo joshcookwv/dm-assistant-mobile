@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Alert, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
-import { router, useLocalSearchParams, useNavigation } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 
 import { AppIcon } from "@/components/app-icon";
@@ -12,6 +12,7 @@ import { SaveToast } from "@/components/save-toast";
 import { Colors } from "@/constants/colors";
 import { saveImageToMaps } from "@/lib/local-files";
 import { createMap, deleteMap, getMap, updateMap, type MapInput, type MapType } from "@/lib/maps";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 
 const BLANK_FORM: MapInput = { name: "", type: "image", url: "", notes: "", tags: "" };
 
@@ -20,6 +21,7 @@ export default function MapDetailScreen() {
   const isNew = id === "new";
   const navigation = useNavigation();
   const [form, setForm] = useState<MapInput>(BLANK_FORM);
+  const [baseline, setBaseline] = useState<MapInput>(BLANK_FORM);
   const [pickedUri, setPickedUri] = useState<string | null>(null);
   const [existingFilePath, setExistingFilePath] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -27,10 +29,34 @@ export default function MapDetailScreen() {
   const [pickError, setPickError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
+  // Screens reached via router.push can be reused by the navigator rather
+  // than remounted, so a "New Map" form could otherwise keep showing
+  // whatever an earlier, unsaved draft last picked or typed. Resetting on
+  // every focus (not just mount) guarantees "New Map" always starts blank.
+  useFocusEffect(
+    useCallback(() => {
+      if (isNew) {
+        setForm(BLANK_FORM);
+        setBaseline(BLANK_FORM);
+        setPickedUri(null);
+        setPickError(null);
+      }
+    }, [isNew])
+  );
+
+  const isDirty = JSON.stringify(form) !== JSON.stringify(baseline) || pickedUri !== null;
+  const allowLeave = useUnsavedChangesGuard(
+    isDirty,
+    isNew
+      ? "This map hasn't been saved. If you go back now, it will be lost."
+      : "This map has unsaved changes. If you go back now, they will be lost."
+  );
+
   useEffect(() => {
     if (isNew) {
       const timeout = setTimeout(() => {
         setForm(BLANK_FORM);
+        setBaseline(BLANK_FORM);
         navigation.setOptions({ title: "New Map" });
       }, 0);
       return () => clearTimeout(timeout);
@@ -43,6 +69,7 @@ export default function MapDetailScreen() {
     }
     const timeout = setTimeout(() => {
       setForm(map);
+      setBaseline(map);
       setExistingFilePath(map.file_path);
       navigation.setOptions({ title: map.name });
     }, 0);
@@ -80,9 +107,12 @@ export default function MapDetailScreen() {
           return;
         }
         const created = createMap({ ...form, file_path });
+        allowLeave();
         router.replace(`/maps/${created.id}`);
       } else {
         updateMap(Number(id), form);
+        setBaseline(form);
+        allowLeave();
         navigation.setOptions({ title: form.name });
       }
       setSavedToast(true);
@@ -92,6 +122,7 @@ export default function MapDetailScreen() {
   }
 
   function handleDelete() {
+    allowLeave();
     deleteMap(Number(id));
     router.back();
   }

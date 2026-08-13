@@ -15,6 +15,7 @@ import {
   type LocationSummary,
 } from "@/lib/campaigns";
 import { createNote, deleteNote, getNote, updateNote, type NoteInput } from "@/lib/notes";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 
 const BLANK_FORM: NoteInput = { title: "", content: "", tags: "", campaignId: null, locationId: null };
 
@@ -38,6 +39,7 @@ export default function NoteDetailScreen() {
   const isNew = id === "new";
   const navigation = useNavigation();
   const [form, setForm] = useState<NoteInput>(BLANK_FORM);
+  const [baseline, setBaseline] = useState<NoteInput>(BLANK_FORM);
   const [saving, setSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -47,12 +49,22 @@ export default function NoteDetailScreen() {
   const [pickerCampaignId, setPickerCampaignId] = useState<number | null>(null);
   const [pickerLocations, setPickerLocations] = useState<LocationSummary[]>([]);
 
+  const isDirty = JSON.stringify(form) !== JSON.stringify(baseline);
+  const allowLeave = useUnsavedChangesGuard(
+    isDirty,
+    isNew
+      ? "This note hasn't been saved. If you go back now, it will be lost."
+      : "This note has unsaved changes. If you go back now, they will be lost."
+  );
+
   useEffect(() => {
     if (isNew) {
       const campaignId = campaignParam ? Number(campaignParam) : null;
       const locationId = locationParam ? Number(locationParam) : null;
       const timeout = setTimeout(() => {
-        setForm({ ...BLANK_FORM, campaignId, locationId });
+        const prefilled = { ...BLANK_FORM, campaignId, locationId };
+        setForm(prefilled);
+        setBaseline(prefilled);
         if (locationId) setLocationName(getCampaignLocation(locationId)?.name ?? null);
         navigation.setOptions({ title: "New Note" });
       }, 0);
@@ -65,13 +77,15 @@ export default function NoteDetailScreen() {
       return;
     }
     const timeout = setTimeout(() => {
-      setForm({
+      const loaded = {
         title: note.title,
         content: note.content,
         tags: note.tags,
         campaignId: note.campaign_id,
         locationId: note.location_id,
-      });
+      };
+      setForm(loaded);
+      setBaseline(loaded);
       if (note.location_id) setLocationName(getCampaignLocation(note.location_id)?.name ?? null);
       navigation.setOptions({ title: note.title });
     }, 0);
@@ -108,9 +122,12 @@ export default function NoteDetailScreen() {
     try {
       if (isNew) {
         const created = createNote(form);
+        allowLeave();
         router.replace(`/notes/${created.id}`);
       } else {
         updateNote(Number(id), form);
+        setBaseline(form);
+        allowLeave();
         navigation.setOptions({ title: form.title });
       }
       setSavedToast(true);
@@ -120,6 +137,7 @@ export default function NoteDetailScreen() {
   }
 
   function handleDelete() {
+    allowLeave();
     deleteNote(Number(id));
     router.back();
   }
