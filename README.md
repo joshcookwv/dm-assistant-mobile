@@ -15,12 +15,22 @@
 
 ## Screenshots
 
-_Pending re-capture — the Session section was replaced by Campaigns/Locations, the app was
-renamed to Infernal Codex, and Encounters/Dashboard both changed. The existing captures in
-[`docs/screenshots/`](docs/screenshots/) are now out of date (`Session-1.jpg`/`Session-2.jpg`
-show a retired screen); new ones go here once taken from the current build._
+<table>
+  <tr>
+    <td><img src="docs/store-screenshots/phone-2026-08-10/01-dashboard.png" width="180" alt="Dashboard"/></td>
+    <td><img src="docs/store-screenshots/phone-2026-08-10/02-campaign-overview.png" width="180" alt="Campaign overview"/></td>
+    <td><img src="docs/store-screenshots/phone-2026-08-10/03-session-recap.png" width="180" alt="Session recap"/></td>
+    <td><img src="docs/store-screenshots/phone-2026-08-10/04-npc-ai-tools.png" width="180" alt="NPC Pro AI tools"/></td>
+  </tr>
+  <tr>
+    <td><img src="docs/store-screenshots/phone-2026-08-10/05-searchable-notes.png" width="180" alt="Searchable notes"/></td>
+    <td><img src="docs/store-screenshots/phone-2026-08-10/06-encounter-runner.png" width="180" alt="Encounter runner"/></td>
+    <td><img src="docs/store-screenshots/phone-2026-08-10/07-offline-rules.png" width="180" alt="Offline rules"/></td>
+    <td><img src="docs/store-screenshots/phone-2026-08-10/08-monster-bestiary.png" width="180" alt="Monster bestiary"/></td>
+  </tr>
+</table>
 
-More captures (NPCs, Notes, Maps, PDF import, Settings) are in [`docs/screenshots/`](docs/screenshots/).
+7-inch and 10-inch tablet captures are in [`docs/store-screenshots/`](docs/store-screenshots/).
 
 ## Features
 
@@ -37,7 +47,7 @@ More captures (NPCs, Notes, Maps, PDF import, Settings) are in [`docs/screenshot
 
 ## Installing
 
-Not on a store yet — see [`docs/store-submission.md`](docs/store-submission.md) for that plan. Three Android builds live in [`builds/`](builds/) (tracked via Git LFS):
+Currently in a private Google Play closed test (invite-only, United States) — not publicly listed yet. See [`docs/Remaining-until-published.md`](docs/Remaining-until-published.md) for where that stands. Three Android builds also live in [`builds/`](builds/) (tracked via Git LFS) for trying it out directly without Play:
 
 - **`*-preview.apk`** — standalone, install and run on its own like any normal app, no computer needed. This is what you want for just trying it out.
 - **`*-dev.apk`** — a development-client build for active coding on this repo. After installing it, run `npm install && npx expo start` and open the app — it connects to the dev server automatically over the same WiFi network.
@@ -81,4 +91,10 @@ docs/             Screenshots, store submission plan
 
 ## License
 
-Application source code is MIT licensed. D&D 5e rules content is fetched at build time from the [Open5e API](https://api.open5e.com) and is licensed separately by its original publishers under the Open Gaming License and/or Creative Commons.
+Application source code is MIT licensed.
+
+Rules and Monsters content is bundled from the [Open5e](https://open5e.com/) project — the D&D 5e System Reference Documents (SRD 5.1 "2014" and SRD 5.2 "2024") plus ~20 third-party sourcebooks (Kobold Press, Green Ronin, and others) — each licensed separately by its original publisher under [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/legalcode) and/or the [Open Game License v1.0a](https://www.d20srd.org/ogl.htm). No bundled content has been modified beyond formatting for display.
+
+The exact required CC-BY attribution sentences, the full OGL 1.0a text, and a Section 15 copyright notice for every bundled source are published at [SRD & Open Content Licenses](https://joshcookwv.github.io/dm-assistant-mobile/licenses/) — the same page the in-app Settings → Legal & Licenses button opens.
+
+Infernal Codex is an independent project and is not affiliated with, endorsed by, or sponsored by Wizards of the Coast.
