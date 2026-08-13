@@ -6,12 +6,6 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "web"],
       "port": 8081
-    },
-    {
-      "name": "site",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "http-server", "site", "-p", "4174", "-a", "localhost"],
-      "port": 4174
     }
   ]
 }
