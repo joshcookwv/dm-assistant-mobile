@@ -17,6 +17,10 @@ jest.mock("@/providers/pro-access", () => ({
 
 jest.mock("expo-router", () => ({
   router: { replace: (href: string) => mockReplace(href) },
+  // No real navigator wraps this test, so there's no focus/blur to react to —
+  // running the callback once on mount is the faithful equivalent here.
+  useFocusEffect: (callback: () => void | (() => void)) =>
+    require("react").useEffect(callback, []),
 }));
 
 describe("NewCampaignScreen", () => {

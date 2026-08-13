@@ -9,7 +9,7 @@ DAILY_CREDIT_LIMIT = 10
 STANDARD_CREDIT_COST = 1
 PDF_CREDIT_COST = 5
 ALLOWED_MODEL = "claude-haiku-4-5-20251001"
-REVENUECAT_ENTITLEMENT_ID = "REPLACE_BEFORE_DEPLOY"
+REVENUECAT_ENTITLEMENT_ID = "Infernal Codex Pro"
 
 # Local tests use Miniflare with this binding. The UUID is the nonsecret
 # production D1 database identifier.

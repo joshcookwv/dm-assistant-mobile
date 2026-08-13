@@ -1,17 +1,15 @@
+import { forwardRef } from "react";
 import { Text, TextInput, TextInputProps, View } from "react-native";
 
 import { Colors } from "@/constants/colors";
 
-export function FormField({
-  label,
-  labelRight,
-  multiline,
-  className,
-  ...inputProps
-}: {
-  label: string;
-  labelRight?: React.ReactNode;
-} & TextInputProps) {
+export const FormField = forwardRef<
+  TextInput,
+  {
+    label: string;
+    labelRight?: React.ReactNode;
+  } & TextInputProps
+>(function FormField({ label, labelRight, multiline, className, ...inputProps }, ref) {
   return (
     <View>
       <View className="flex-row items-center justify-between">
@@ -19,6 +17,7 @@ export function FormField({
         {labelRight}
       </View>
       <TextInput
+        ref={ref}
         placeholderTextColor={Colors.muted}
         multiline={multiline}
         textAlignVertical={multiline ? "top" : undefined}
@@ -27,4 +26,4 @@ export function FormField({
       />
     </View>
   );
-}
+});
