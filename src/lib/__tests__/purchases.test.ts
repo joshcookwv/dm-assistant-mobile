@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, jest } from "@jest/globals";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from "@jest/globals";
 import type {
   CustomerInfo,
   PACKAGE_TYPE,
@@ -6,7 +6,7 @@ import type {
   PurchasesPackage,
 } from "react-native-purchases";
 
-import { activateReviewerAccess, monthlyPackages } from "../purchases";
+import { activateReviewerAccess, customerHasPro, monthlyPackages } from "../purchases";
 
 const mockCustomerInfo = { entitlements: { active: {} } } as CustomerInfo;
 const mockLogIn = jest.fn(async (_appUserId: string) => ({
@@ -109,5 +109,47 @@ describe("activateReviewerAccess", () => {
       "Enter the app review access code."
     );
     expect(mockLogIn).not.toHaveBeenCalled();
+  });
+});
+
+describe("customerHasPro", () => {
+  const originalDev = (globalThis as { __DEV__?: boolean }).__DEV__;
+  const originalEntitlement = process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID;
+
+  function withEntitlement(isSandbox: boolean, store = "PLAY_STORE"): CustomerInfo {
+    return {
+      entitlements: { active: { pro: { identifier: "pro", isSandbox, store } } },
+    } as unknown as CustomerInfo;
+  }
+
+  beforeEach(() => {
+    process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID = "pro";
+    (globalThis as { __DEV__?: boolean }).__DEV__ = false;
+  });
+
+  afterAll(() => {
+    process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID = originalEntitlement;
+    (globalThis as { __DEV__?: boolean }).__DEV__ = originalDev;
+  });
+
+  it("grants Pro for a production purchase", () => {
+    expect(customerHasPro(withEntitlement(false))).toBe(true);
+  });
+
+  it("grants Pro for a promotional grant such as reviewer access", () => {
+    expect(customerHasPro(withEntitlement(false, "PROMOTIONAL"))).toBe(true);
+  });
+
+  it("refuses Pro for a sandbox purchase in release builds", () => {
+    expect(customerHasPro(withEntitlement(true))).toBe(false);
+  });
+
+  it("allows sandbox purchases in development builds", () => {
+    (globalThis as { __DEV__?: boolean }).__DEV__ = true;
+    expect(customerHasPro(withEntitlement(true))).toBe(true);
+  });
+
+  it("refuses Pro without an active entitlement", () => {
+    expect(customerHasPro(mockCustomerInfo)).toBe(false);
   });
 });

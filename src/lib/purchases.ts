@@ -36,7 +36,11 @@ function entitlementId(): string {
 export function customerHasPro(customerInfo: CustomerInfo): boolean {
   const id = entitlementId();
   if (!id) return false;
-  return Boolean(customerInfo.entitlements.active[id]);
+  const entitlement = customerInfo.entitlements.active[id];
+  if (!entitlement) return false;
+  // Sandbox purchases (Play license testers, RevenueCat Test Store) are free,
+  // so only development builds may treat them as Pro.
+  return __DEV__ || !entitlement.isSandbox;
 }
 
 export async function ensurePurchasesConfigured(): Promise<boolean> {

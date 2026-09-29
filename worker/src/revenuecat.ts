@@ -9,17 +9,26 @@ export interface VerifiedCustomer {
 interface RevenueCatEnvironment {
   REVENUECAT_SECRET_API_KEY: string;
   REVENUECAT_ENTITLEMENT_ID: string;
+  // Local-testing escape hatch only; never set this in production.
+  ALLOW_SANDBOX_ENTITLEMENTS?: string;
 }
 
 interface RevenueCatEntitlement {
   expires_date?: string | null;
   grace_period_expires_date?: string | null;
+  product_identifier?: string;
+}
+
+interface RevenueCatSubscription {
+  is_sandbox?: boolean;
+  store?: string;
 }
 
 interface RevenueCatSubscriberResponse {
   subscriber?: {
     original_app_user_id?: string;
     entitlements?: Record<string, RevenueCatEntitlement>;
+    subscriptions?: Record<string, RevenueCatSubscription>;
   };
 }
 
@@ -44,6 +53,18 @@ function activeDatedWindow(value: string | null | undefined, now: number): strin
   if (!value) return "";
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp) && timestamp > now ? value : "";
+}
+
+// Sandbox purchases (Play license testers, RevenueCat Test Store) are free, so
+// they must never unlock Pro in production. Promotional grants, such as the
+// Play reviewer account, are not sandbox and stay valid.
+function isSandboxEntitlement(
+  entitlement: RevenueCatEntitlement,
+  subscriptions: Record<string, RevenueCatSubscription> | undefined
+): boolean {
+  const productId = entitlement.product_identifier;
+  if (!productId) return false;
+  return subscriptions?.[productId]?.is_sandbox === true;
 }
 
 export async function verifyEntitlement(
@@ -106,7 +127,11 @@ export async function verifyEntitlement(
       : activeDatedWindow(entitlement?.expires_date, now);
   const grace = activeDatedWindow(entitlement?.grace_period_expires_date, now);
   const activeExpiration = regular !== "" ? regular : grace;
-  if (!entitlement || activeExpiration === "") {
+  const sandboxBlocked =
+    entitlement !== undefined &&
+    env.ALLOW_SANDBOX_ENTITLEMENTS?.trim().toLowerCase() !== "true" &&
+    isSandboxEntitlement(entitlement, subscriber?.subscriptions);
+  if (!entitlement || activeExpiration === "" || sandboxBlocked) {
     throw new RevenueCatError(
       "pro_required",
       403,
