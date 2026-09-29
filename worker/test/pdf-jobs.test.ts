@@ -22,7 +22,7 @@ function activeCustomer(canonicalId: string): Response {
       original_app_user_id: canonicalId,
       entitlements: {
         pro: {
-          expires_date: "2026-09-11T12:00:00Z",
+          expires_date: "2099-09-11T12:00:00Z",
           grace_period_expires_date: null,
         },
       },
